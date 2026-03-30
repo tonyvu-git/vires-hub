@@ -1,0 +1,32 @@
+# ─── Dependencies ─────────────────────────────────────
+node_modules/
+
+# ─── Environment & Secrets ────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Uploaded user files (generated at runtime) ───────
+public/uploads/
+public/news-images/
+public/wiki/files/
+
+# ─── OS files ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Logs ──────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Editor / IDE ──────────────────────────────────────
+.vscode/
+.idea/
+
+# ─── Database ─────────────────────────────────────────
+# Giữ database.db để backup dữ liệu nhỏ (<100MB).
+# Nếu DB phát triển lớn, bỏ comment dòng dưới:
+# database.db
+
+# ─── Misc ─────────────────────────────────────────────
+split.js

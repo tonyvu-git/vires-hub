@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIRES Hub — Cổng Thông Tin Nội Bộ</title>
+    <meta name="description" content="VIRES Hub — Hệ thống quản lý thông tin và cộng tác nội bộ của công ty.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js" defer></script>
+</head>
+<body class="theme-light">
+
+<!-- ═══════════════════════════════════════════════════════
+     AUTH OVERLAY
+═══════════════════════════════════════════════════════ -->
+<div id="auth-overlay" class="overlay active">
+    <div class="auth-card">
+        <div class="logo-wrap">
+            <img src="/vires-logo.png" class="auth-logo-img" alt="Logo VIRES">
+            <div class="logo">VIRES Hub</div>
+            <div class="logo-sub">Cổng thông tin nội bộ</div>
+        </div>
+        <div id="login-form">
+            <h2>Chào mừng trở lại</h2>
+            <div class="field">
+                <label for="l-username">Tên đăng nhập</label>
+                <input type="text" id="l-username" placeholder="Nhập tên đăng nhập..." autocomplete="username">
+            </div>
+            <div class="field">
+                <label for="l-password">Mật khẩu</label>
+                <input type="password" id="l-password" placeholder="Nhập mật khẩu..." autocomplete="current-password">
+            </div>
+            <button id="btn-login" class="btn btn-primary btn-full">Đăng nhập</button>
+            <p class="toggle">Chưa có tài khoản? <a href="#" id="to-register">Đăng ký ngay</a></p>
+        </div>
+        <div id="register-form" class="hidden">
+            <h2>Tạo tài khoản mới</h2>
+            <div class="field">
+                <label for="r-fullname">Họ và tên</label>
+                <input type="text" id="r-fullname" placeholder="Nguyễn Văn A">
+            </div>
+            <div class="field">
+                <label for="r-username">Tên đăng nhập</label>
+                <input type="text" id="r-username" placeholder="nguyenvana">
+            </div>
+            <div class="field">
+                <label for="r-password">Mật khẩu</label>
+                <input type="password" id="r-password" placeholder="Tối thiểu 6 ký tự">
+            </div>
+            <div class="field">
+                <label for="r-department">Thuộc Phòng</label>
+                <select id="r-department">
+                    <option value="">-- Chọn phòng ban --</option>
+                </select>
+            </div>
+            <button id="btn-register" class="btn btn-primary btn-full">Tạo tài khoản</button>
+            <p class="toggle">Đã có tài khoản? <a href="#" id="to-login">Đăng nhập</a></p>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     APP SHELL
+═══════════════════════════════════════════════════════ -->
+<div id="app-container" class="hidden">
+
+    <!-- ① HEADER ──────────────────────────────────────── -->
+    <header class="app-header">
+        <div class="hdr-brand" id="hdr-brand-home" title="Về trang chủ">
+            <img src="/vires-logo.png" class="hdr-logo-img" alt="Logo VIRES">
+            <div class="hdr-title">
+                <span class="hdr-name">VIRES Hub</span>
+                <span class="hdr-subtitle">Cổng thông tin nội bộ</span>
+            </div>
+        </div>
+
+        <div class="hdr-center">
+            <div class="hdr-clock" id="clock">00:00:00</div>
+            <div class="hdr-date" id="date-display"></div>
+        </div>
+
+        <div class="hdr-right">
+            <button id="btn-post-news" class="btn btn-accent btn-sm admin-only hidden">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Đăng tin
+            </button>
+            <div class="hdr-user">
+                <img id="user-avatar" src="" alt="avatar" class="hdr-avatar">
+                <div class="hdr-user-info">
+                    <span id="user-fullname" class="hdr-username">...</span>
+                    <span id="user-role" class="hdr-role">...</span>
+                </div>
+            </div>
+            <button id="btn-settings" class="hdr-icon-btn" title="Cài đặt">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
+            </button>
+            <button id="btn-logout" class="hdr-icon-btn hdr-logout-btn" title="Đăng xuất">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <!-- ② NAVIGATION MENU ─────────────────────────────── -->
+    <nav class="app-nav">
+        <div class="nav-track">
+            <a href="#" class="nav-item active" data-view="dashboard">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                Trang chính
+            </a>
+            <a href="#" class="nav-item" data-view="dm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                Tin nhắn
+                <span id="nav-dm-badge" class="nav-badge hidden">0</span>
+            </a>
+            <a href="#" class="nav-item" data-view="tasks">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Công việc
+            </a>
+            <a href="#" class="nav-item" data-view="directory">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                Danh bạ
+            </a>
+            <a href="/wiki" target="_blank" class="nav-item">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                Quy trình
+            </a>
+            <a href="#" class="nav-item nav-admin admin-only hidden" data-view="admin">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                Quản trị
+            </a>
+            <div class="nav-indicator" id="nav-indicator"></div>
+        </div>
+    </nav>
+
+    <!-- ③④⑤ CONTENT AREA (3 columns) ───────────────────── -->
+    <div class="app-body">
+
+        <aside class="body-left">
+            <div class="widget">
+                <div class="widget-header">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    DEADLINE SẮP TỚI
+                </div>
+                <div id="widget-tasks" class="widget-body">
+                    <div class="empty-hint">Không có deadline.</div>
+                </div>
+                <button class="widget-link" id="go-tasks">Xem tất cả →</button>
+            </div>
+            <div class="widget">
+                <div class="widget-header">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 17H2a3 3 0 000 6h20a3 3 0 000-6z"/><path d="M12 17V3m0 0l-4 4m4-4l4 4"/></svg>
+                        THÔNG BÁO
+                    </div>
+                    <button class="hdr-icon-btn admin-only hidden" id="btn-manage-announcements" title="Quản lý thông báo" style="margin-left:auto;padding:2px;background:none;border:none;cursor:pointer;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    </button>
+                </div>
+                <div id="widget-announcements" class="widget-body">
+                    <div class="empty-hint">Chưa có thông báo.</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT ── Views -->
+        <main class="body-main" id="body-main">
+
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view active">
+                <div class="view-inner">
+                    <div class="news-header-bar">
+                        <div class="section-label">BẢN TIN MỚI NHẤT</div>
+                        <button class="btn btn-ghost btn-sm admin-only hidden" id="btn-manage-news">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            Quản lý bản tin
+                        </button>
+                    </div>
+                    <div id="news-grid" class="news-grid"></div>
+                </div>
+            </section>
+
+            <!-- DM View -->
+            <section id="view-dm" class="view dm-view">
+                <div class="dm-sidebar">
+                    <div class="dm-sidebar-header">
+                        <h3>Tin nhắn</h3>
+                    </div>
+                    <div id="dm-convo-list" class="dm-convo-list">
+                        <div class="empty-hint">Đang tải...</div>
+                    </div>
+                </div>
+                <div class="dm-main">
+                    <div id="dm-placeholder" class="dm-placeholder">
+                        <div class="dm-placeholder-icon">💬</div>
+                        <p>Chọn một cuộc trò chuyện hoặc nhắn tin từ Danh bạ</p>
+                    </div>
+                    <div id="dm-chat" class="dm-chat-wrap dm-chat-hidden">
+                        <div class="dm-chat-header">
+                            <img id="dm-peer-avatar" src="" alt="" class="dm-peer-avatar">
+                            <div class="dm-peer-name" id="dm-peer-name">...</div>
+                        </div>
+                        <div id="dm-messages" class="chat-messages dm-messages"></div>
+                        <div class="chat-input-area">
+                            <input type="text" id="dm-input" placeholder="Nhắn tin riêng...">
+                            <button id="btn-send-dm" class="btn btn-primary">Gửi</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tasks View -->
+            <section id="view-tasks" class="view">
+                <div class="view-inner">
+                    <div class="task-inputs">
+                        <input type="text" id="new-task-title" placeholder="Tên công việc cần làm...">
+                        <input type="datetime-local" id="new-task-deadline" title="Ngày giờ hết hạn">
+                        <button id="btn-add-task" class="btn btn-primary">+ Thêm việc</button>
+                    </div>
+                    <div id="tasks-list-full" class="tasks-list"></div>
+                </div>
+            </section>
+
+            <!-- Directory View -->
+            <section id="view-directory" class="view">
+                <div class="view-inner">
+                    <div class="directory-search">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <input type="text" id="dir-search" placeholder="Tìm kiếm nhân viên...">
+                    </div>
+                    <div id="directory-list" class="directory-grid">
+                        <div class="empty-hint">Đang tải danh sách nhân viên...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Admin View — quản lý tài khoản (admin only) -->
+            <section id="view-admin" class="view admin-only hidden">
+                <div class="view-inner admin-view">
+                    <div class="admin-toolbar">
+                        <div class="admin-filters">
+                            <div class="admin-search-wrap">
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                <input type="text" id="admin-search" placeholder="Tìm tên, account, VIRES ID...">
+                            </div>
+                            <select id="admin-filter-dept" class="admin-select" aria-label="Lọc theo phòng ban" title="Lọc theo phòng ban">
+                                <option value="">Tất cả các phòng</option>
+                            </select>
+                        </div>
+                        <button id="btn-create-account" class="btn btn-primary btn-sm">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                            Tạo tài khoản
+                        </button>
+                    </div>
+                    <div class="accounts-table-wrap">
+                        <table class="accounts-table">
+                            <thead>
+                                <tr>
+                                    <th>Nhân viên</th>
+                                    <th>Account</th>
+                                    <th>VIRES ID</th>
+                                    <th>Phòng ban</th>
+                                    <th>Liên lạc</th>
+                                    <th>Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accounts-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="accounts-empty" class="empty-hint hidden">Chưa có tài khoản nào.</div>
+                </div>
+            </section>
+
+        </main><!-- /body-main -->
+
+        <!-- RIGHT SIDEBAR ── Inline Chat -->
+        <aside class="body-right">
+            <div class="widget dashboard-chat-widget">
+                <div class="widget-header" style="justify-content: space-between;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                        CHAT CHUNG
+                    </div>
+                    <button id="btn-toggle-chat" class="hdr-icon-btn" title="Mở rộng/Thu gọn" style="background:none; border:none; color:inherit; cursor:pointer; padding:2px; display:flex;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                        </svg>
+                    </button>
+                </div>
+                <div id="dashboard-chat-messages" class="widget-chat-messages"></div>
+                <div class="widget-chat-input">
+                    <input type="text" id="dashboard-chat-input" placeholder="Nhắn tin nhóm..." autocomplete="off">
+                    <button id="btn-send-dashboard-chat" class="btn btn-primary btn-xs" title="Gửi tin nhắn">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+    </div><!-- /app-body -->
+
+    <!-- ⑥ FOOTER ──────────────────────────────────────── -->
+    <footer class="app-footer">
+        <div class="ftr-left">
+            <span class="footer-brand">🏢 VIRES Hub &copy; 2026</span>
+            <div class="footer-stats">
+                <div class="ftr-stat">
+                    <span class="ftr-stat-label">Nhân viên:</span>
+                    <span class="ftr-stat-val" id="stat-users">—</span>
+                </div>
+                <div class="ftr-stat">
+                    <span class="ftr-stat-label">Bản tin:</span>
+                    <span class="ftr-stat-val" id="stat-news">—</span>
+                </div>
+                <div class="ftr-stat">
+                    <span class="ftr-stat-label">v1.0</span>
+                </div>
+            </div>
+        </div>
+        <span class="footer-view" id="footer-view">Trang chính</span>
+        <span class="footer-status">
+            <span class="status-dot"></span>
+            Máy chủ đang hoạt động
+        </span>
+    </footer>
+
+</div><!-- /app-container -->
+
+<!-- ═══════════════════════════════════════════════════════
+     MODALS
+═══════════════════════════════════════════════════════ -->
+
+<!-- News Compose/Edit Modal -->
+<div id="news-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2 id="news-modal-title">📢 Đăng tin mới</h2>
+            <button class="modal-close" id="btn-news-cancel">✕</button>
+        </div>
+        <div class="field">
+            <label for="news-title">Tiêu đề *</label>
+            <input type="text" id="news-title" placeholder="Tiêu đề bản tin...">
+        </div>
+        <div class="field">
+            <label>Nội dung <span class="badge-md">Markdown</span></label>
+            <div class="md-editor-wrap">
+                <div class="md-editor-col">
+                    <div class="md-pane-label">Soạn thảo</div>
+                    <textarea id="news-content" rows="12" placeholder="## Tiêu đề&#10;&#10;Nội dung **in đậm**, *in nghiêng*&#10;&#10;- Điểm 1&#10;- Điểm 2"></textarea>
+                </div>
+                <div class="md-editor-col">
+                    <div class="md-pane-label">Xem trước</div>
+                    <div id="news-preview" class="md-preview"><em class="preview-hint">Bắt đầu đánh máy để xem trước...</em></div>
+                </div>
+            </div>
+        </div>
+        <div class="field">
+            <label for="news-image">Ảnh minh họa</label>
+            <div class="image-upload-area" id="news-image-area">
+                <div class="image-current hidden" id="news-image-current">
+                    <img id="news-image-preview" src="" alt="Ảnh hiện tại">
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-remove-image">✕ Xóa ảnh</button>
+                </div>
+                <input type="file" id="news-image" accept="image/*">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="btn-news-cancel2" class="btn btn-ghost">Huỷ</button>
+            <button id="btn-news-submit" class="btn btn-primary">📤 Đăng ngay</button>
+        </div>
+    </div>
+</div>
+
+<!-- News Reader Modal (full article) -->
+<div id="news-reader-modal" class="modal-overlay">
+    <div class="modal modal-wide reader-modal">
+        <div class="modal-header reader-modal-header">
+            <div></div>
+            <button class="modal-close" id="btn-news-reader-close">✕</button>
+        </div>
+        <div class="reader-modal-scroll">
+            <div id="news-reader-img-wrap" class="news-reader-img hidden">
+                <img id="news-reader-img" src="" alt="">
+            </div>
+            <div class="news-reader-body">
+                <h1 id="news-reader-title"></h1>
+                <div class="news-reader-meta" id="news-reader-meta"></div>
+                <div class="news-reader-content" id="news-reader-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- News Manager Modal (admin) -->
+<div id="news-manager-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2>📋 Quản lý Bản tin</h2>
+            <button class="modal-close" id="btn-news-manager-close">✕</button>
+        </div>
+        <div class="admin-toolbar">
+            <div class="admin-search-wrap nm-search-wrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="nm-search" placeholder="Tìm tiêu đề...">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-new-news">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Đăng tin mới
+            </button>
+        </div>
+        <div class="accounts-table-wrap">
+            <table class="accounts-table">
+                <thead>
+                    <tr>
+                        <th>Ảnh</th>
+                        <th>Tiêu đề</th>
+                        <th>Tác giả</th>
+                        <th>Ngày đăng</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="news-manager-tbody"></tbody>
+            </table>
+        </div>
+        <div id="news-manager-empty" class="empty-hint hidden">Chưa có bản tin nào.</div>
+    </div>
+</div>
+
+<!-- Announcements Manager Modal (admin) -->
+<div id="announcement-manager-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2>📢 Quản lý Thông báo</h2>
+            <button class="modal-close" id="btn-announcement-manager-close">✕</button>
+        </div>
+        <div class="admin-toolbar">
+            <div class="admin-search-wrap nm-search-wrap">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="am-search" placeholder="Tìm tiêu đề...">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-new-announcement">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Tạo thông báo
+            </button>
+        </div>
+        <div class="accounts-table-wrap">
+            <table class="accounts-table">
+                <thead>
+                    <tr>
+                        <th>Tiêu đề</th>
+                        <th>Ngày đăng</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody id="announcement-manager-tbody"></tbody>
+            </table>
+        </div>
+        <div id="announcement-manager-empty" class="empty-hint hidden">Chưa có thông báo nào.</div>
+    </div>
+</div>
+
+<!-- Announcement Modal (Create/Edit) -->
+<div id="announcement-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2 id="announcement-modal-title">📢 Tạo Thông báo Mới</h2>
+            <button class="modal-close" id="btn-announcement-close">✕</button>
+        </div>
+        <div class="field">
+            <label for="announcement-title">Tiêu đề *</label>
+            <input type="text" id="announcement-title" placeholder="Tiêu đề thông báo...">
+        </div>
+        <div class="field">
+            <label>Nội dung <span class="badge-md">Markdown</span></label>
+            <div class="md-editor-wrap">
+                <div class="md-editor-col">
+                    <div class="md-pane-label">Soạn thảo</div>
+                    <textarea id="announcement-content" rows="12" placeholder="## Tiêu đề&#10;&#10;Nội dung **in đậm**, *in nghiêng*&#10;&#10;- Điểm 1&#10;- Điểm 2"></textarea>
+                </div>
+                <div class="md-editor-col">
+                    <div class="md-pane-label">Xem trước</div>
+                    <div id="announcement-preview" class="md-preview"><em class="preview-hint">Bắt đầu đánh máy để xem trước...</em></div>
+                </div>
+            </div>
+        </div>
+        <div class="field">
+            <label for="announcement-image">Ảnh minh họa</label>
+            <div class="image-upload-area" id="announcement-image-area">
+                <div class="image-current hidden" id="announcement-image-current">
+                    <img id="announcement-image-preview" src="" alt="Ảnh hiện tại">
+                    <button type="button" class="btn btn-ghost btn-sm" id="btn-remove-announcement-image">✕ Xóa ảnh</button>
+                </div>
+                <input type="file" id="announcement-image" accept="image/*">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="btn-announcement-cancel" class="btn btn-ghost">Huỷ</button>
+            <button id="btn-announcement-submit" class="btn btn-primary">📤 Đăng ngay</button>
+        </div>
+    </div>
+</div>
+
+<!-- Announcement Reader Modal -->
+<div id="announcement-reader-modal" class="modal-overlay">
+    <div class="modal modal-wide reader-modal">
+        <div class="modal-header reader-modal-header">
+            <div></div>
+            <button class="modal-close" id="btn-announcement-reader-close">✕</button>
+        </div>
+        <div class="reader-modal-scroll">
+            <div id="announcement-reader-img-wrap" class="news-reader-img hidden">
+                <img id="announcement-reader-img" src="" alt="">
+            </div>
+            <div class="news-reader-body">
+                <h1 id="announcement-reader-title"></h1>
+                <div class="news-reader-meta" id="announcement-reader-meta"></div>
+                <div class="news-reader-content" id="announcement-reader-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal — tabbed -->
+<div id="settings-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2>⚙️ Cài đặt</h2>
+            <button class="modal-close" id="btn-settings-close">✕</button>
+        </div>
+        <div class="settings-tabs">
+            <button class="stab active" id="stab-profile">👤 Thông tin cá nhân</button>
+            <button class="stab" id="stab-appearance">🎨 Giao diện</button>
+            <button class="stab" id="stab-security">🛡️ Bảo mật</button>
+        </div>
+
+        <!-- Tab: Profile -->
+        <div id="stab-profile-panel">
+            <div class="avatar-upload-area">
+                <img id="settings-avatar-preview" src="" alt="avatar" class="avatar-preview-lg">
+                <div class="avatar-upload-info">
+                    <p>Ảnh đại diện của bạn<br><small>Tự động resize về 100×100px.</small></p>
+                    <label class="btn btn-ghost btn-sm" for="settings-avatar-file">
+                        📷 Chọn ảnh
+                        <input type="file" id="settings-avatar-file" accept="image/*" hidden>
+                    </label>
+                    <div id="avatar-upload-status" class="upload-status"></div>
+                </div>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="profile-form-grid">
+                <div class="field">
+                    <label for="pf-fullname">Họ và Tên *</label>
+                    <input type="text" id="pf-fullname" placeholder="Nguyễn Văn A">
+                </div>
+                <div class="field">
+                    <label for="pf-vires-id">VIRES ID</label>
+                    <input type="text" id="pf-vires-id" placeholder="VR001">
+                </div>
+                <div class="field">
+                    <label for="pf-department">Thuộc Phòng</label>
+                    <select id="pf-department" aria-label="Chọn phòng ban" title="Chọn phòng ban">
+                        <option value="">-- Chọn phòng ban --</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="pf-phone">Số điện thoại</label>
+                    <input type="text" id="pf-phone" placeholder="0901234567">
+                </div>
+                <div class="field">
+                    <label for="pf-email-work">Email công việc</label>
+                    <input type="email" id="pf-email-work" placeholder="example@vires.com.vn">
+                </div>
+                <div class="field">
+                    <label for="pf-email-personal">Email cá nhân</label>
+                    <input type="email" id="pf-email-personal" placeholder="example@gmail.com">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" id="btn-settings-close2">Đóng</button>
+                <button id="btn-save-profile" class="btn btn-primary">💾 Lưu thông tin</button>
+            </div>
+        </div>
+
+        <!-- Tab: Appearance -->
+        <div id="stab-appearance-panel" class="hidden">
+            <div class="settings-section">
+                <div class="settings-title">Chọn giao diện</div>
+                <div class="theme-switcher">
+                    <button class="theme-btn active" id="btn-theme-light">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></svg>
+                        Sáng màu
+                    </button>
+                    <button class="theme-btn" id="btn-theme-dark">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                        Tối màu
+                    </button>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary" id="btn-appearance-close">Xong</button>
+            </div>
+        </div>
+
+        <!-- Tab: Security (Change password) -->
+        <div id="stab-security-panel" class="hidden">
+            <div class="settings-section">
+                <div class="settings-title">Đổi mật khẩu</div>
+                <div class="field">
+                    <label for="pf-password-old">Mật khẩu hiện tại</label>
+                    <input type="password" id="pf-password-old" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <div class="settings-divider"></div>
+                <div class="field">
+                    <label for="pf-password-new">Mật khẩu mới</label>
+                    <input type="password" id="pf-password-new" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password">
+                </div>
+                <div class="field">
+                    <label for="pf-password-confirm">Xác nhận mật khẩu mới</label>
+                    <input type="password" id="pf-password-confirm" placeholder="Nhập lại mật khẩu mới" autocomplete="new-password">
+                </div>
+                <div id="password-status" class="upload-status"></div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-ghost" id="btn-settings-close3">Đóng</button>
+                <button id="btn-change-password" class="btn btn-primary">🔐 Cập nhật mật khẩu</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Account Create/Edit Modal (Admin) -->
+<div id="account-modal" class="modal-overlay">
+    <div class="modal modal-wide">
+        <div class="modal-header">
+            <h2 id="account-modal-title">Tạo tài khoản mới</h2>
+            <button class="modal-close" id="btn-account-modal-close">✕</button>
+        </div>
+        <div class="account-form-grid">
+            <div>
+                <div class="field">
+                    <label for="af-username">Account *</label>
+                    <input type="text" id="af-username" placeholder="nguyenvana" autocomplete="off">
+                </div>
+                <div class="field">
+                    <label for="af-password">Mật khẩu <span class="field-hint" id="af-password-hint">(bắt buộc)</span></label>
+                    <input type="password" id="af-password" placeholder="Nhập mật khẩu..." autocomplete="new-password">
+                </div>
+                <div class="field">
+                    <label for="af-fullname">Họ và Tên *</label>
+                    <input type="text" id="af-fullname" placeholder="Nguyễn Văn A">
+                </div>
+                <div class="field">
+                    <label for="af-vires-id">VIRES ID</label>
+                    <input type="text" id="af-vires-id" placeholder="VR001">
+                </div>
+                <div class="field">
+                    <label for="af-role">Vai trò</label>
+                    <select id="af-role" aria-label="Vai trò" title="Vai trò">
+                        <option value="user">Nhân viên</option>
+                        <option value="director">Giám đốc</option>
+                        <option value="deputy_director">Phó Giám đốc</option>
+                        <option value="dept_head">Trưởng phòng</option>
+                        <option value="deputy_dept_head">Phó trưởng phòng</option>
+                        <option value="admin">Quản trị viên</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <div class="field">
+                    <label for="af-department">Thuộc Phòng</label>
+                    <select id="af-department" aria-label="Chọn phòng ban" title="Chọn phòng ban">
+                        <option value="">-- Chọn phòng ban --</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="af-phone">Số điện thoại liên lạc</label>
+                    <input type="text" id="af-phone" placeholder="0901234567">
+                </div>
+                <div class="field">
+                    <label for="af-email-work">Email công việc</label>
+                    <input type="email" id="af-email-work" placeholder="example@vires.com.vn">
+                </div>
+                <div class="field">
+                    <label for="af-email-personal">Email cá nhân</label>
+                    <input type="email" id="af-email-personal" placeholder="example@gmail.com">
+                </div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btn-account-modal-cancel">Huỷ</button>
+            <button class="btn btn-primary" id="btn-account-modal-save">💾 Lưu tài khoản</button>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Delete Modal -->
+<div id="confirm-delete-modal" class="modal-overlay">
+    <div class="modal modal-sm">
+        <div class="modal-header">
+            <h2>⚠️ Xác nhận xóa</h2>
+        </div>
+        <p id="confirm-delete-text" class="confirm-text"></p>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" id="btn-delete-cancel">Huỷ</button>
+            <button class="btn btn-danger" id="btn-delete-confirm">Xóa tài khoản</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast DM -->
+<div id="dm-toast" class="dm-toast hidden">
+    <div class="dm-toast-content">
+        <img id="dm-toast-img" src="" alt="" class="dm-toast-avatar">
+        <div class="dm-toast-body">
+            <div class="dm-toast-name" id="dm-toast-name"></div>
+            <div class="dm-toast-msg" id="dm-toast-msg"></div>
+        </div>
+    </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/news.js"></script>
+<script src="js/tasks.js"></script>
+<script src="js/chat.js"></script>
+<script src="js/admin.js"></script>
+<script src="announcements.js"></script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>VIRES Wiki - Quy trình & Chính sách</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <meta name="description" content="Hệ thống quy trình và chính sách nội bộ VIRES">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
+  
+  <!-- Docsify Theme: Vue -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/vue.css">
+  
+  <style>
+    :root {
+      --docsify-theme-color: #4f46e5; /* Match VIRES Hub Accent */
+    }
+    .sidebar {
+      background-color: #f8fafc;
+    }
+    .markdown-section {
+      max-width: 900px;
+    }
+    /* Simple Auth Overlay until check is done */
+    #auth-guard {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: white; z-index: 9999; display: flex;
+      align-items: center; justify-content: center;
+      font-family: sans-serif;
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="auth-guard">
+    <h3>Đang xác thực quyền truy cập...</h3>
+  </div>
+
+  <div id="app"></div>
+
+  <!-- 1. Auth Bridge Security Script -->
+  <script src="auth-check.js"></script>
+
+  <script>
+    window.$docsify = {
+      name: 'VIRES Wiki',
+      repo: '',
+      loadSidebar: true,
+      loadNavbar: true,
+      subMaxLevel: 2,
+      search: 'auto', // default search plugin
+      auto2top: true,
+      placeholder: 'Tìm kiếm quy trình...',
+      noData: 'Không có kết quả!',
+      formatUpdated: '{MM}/{DD} {HH}:{mm}',
+      
+      // Plugin: Footer
+      plugins: [
+        function(hook) {
+          var footer = [
+            '<hr/>',
+            '<footer>',
+            '<span>VIRES Hub &copy; 2026. Cổng thông tin nội bộ.</span>',
+            '</footer>'
+          ].join('');
+
+          hook.afterEach(function(html) {
+            return html + footer;
+          });
+        }
+      ]
+    }
+  </script>
+
+  <!-- Docsify v4 -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4"></script>
+  <!-- Search Plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
+  <!-- Zoom image plugin -->
+  <script src="https://cdn.jsdelivr.net/npm/docsify/lib/plugins/zoom-image.min.js"></script>
+</body>
+</html>
