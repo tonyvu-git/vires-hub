@@ -82,12 +82,88 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(author_id) REFERENCES users(id)
   );
+
+  CREATE TABLE IF NOT EXISTS system_settings (
+    setting_key TEXT PRIMARY KEY,
+    setting_value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS polls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question TEXT NOT NULL,
+    created_by INTEGER,
+    expires_at INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(created_by) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS poll_options (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id INTEGER NOT NULL,
+    option_text TEXT NOT NULL,
+    FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS poll_votes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    poll_id INTEGER NOT NULL,
+    option_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+    FOREIGN KEY(option_id) REFERENCES poll_options(id) ON DELETE CASCADE,
+    UNIQUE(poll_id, user_id)
+  );
 `);
 
 // Migration: add image column if missing (safe for existing DBs)
 try {
   db.prepare('ALTER TABLE announcements ADD COLUMN image TEXT').run();
 } catch (e) { /* column already exists */ }
+
+// Migration: Polls v2 (with expires_at limit)
+try {
+  db.prepare('SELECT expires_at FROM polls LIMIT 1').get();
+} catch (e) {
+  // If column doesn't exist, drop old poll tables and recreate
+  console.log('Migrating Polls table to v2 (adding expires_at)...');
+  db.exec(`
+    DROP TABLE IF EXISTS poll_votes;
+    DROP TABLE IF EXISTS poll_options;
+    DROP TABLE IF EXISTS polls;
+    
+    CREATE TABLE IF NOT EXISTS polls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL,
+      created_by INTEGER,
+      expires_at INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(created_by) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS poll_options (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poll_id INTEGER NOT NULL,
+      option_text TEXT NOT NULL,
+      FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS poll_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      poll_id INTEGER NOT NULL,
+      option_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(poll_id) REFERENCES polls(id) ON DELETE CASCADE,
+      FOREIGN KEY(option_id) REFERENCES poll_options(id) ON DELETE CASCADE,
+      UNIQUE(poll_id, user_id)
+    );
+  `);
+}
+
+// Seed system settings
+const lockCheck = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?').get('poll_creation_locked');
+if (!lockCheck) {
+  db.prepare('INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)').run('poll_creation_locked', 'false');
+}
 
 // ─── Migrate existing DB: add new user columns if missing ──
 const alterCols = ['vires_id TEXT', 'phone TEXT', 'email_work TEXT', 'email_personal TEXT', 'department_id INTEGER'];

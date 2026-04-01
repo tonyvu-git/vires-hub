@@ -150,7 +150,7 @@ function renderNewsGrid(news) {
                 <button class="news-card-action-btn nc-del"  onclick="event.stopPropagation(); deleteNews(${n.id}, '${escHtml(n.title)}')" title="Xóa">🗑️</button>
             </div>` : '';
         const excerpt = n.content.replace(/<[^>]+>/g, '').substring(0, 80);
-        const dateStr = new Date(n.created_at + ' UTC').toLocaleDateString('vi-VN');
+        const dateStr = formatDate(n.created_at + ' UTC');
         return `<article class="news-card" onclick="openNewsReader(${n.id})">
             <div class="news-card-thumb">${thumb}${adminBtns}</div>
             <div class="news-card-body">
@@ -173,7 +173,7 @@ function openNewsReader(newsId) {
 
     document.getElementById('news-reader-title').textContent = n.title;
     document.getElementById('news-reader-meta').textContent  =
-        `Đăng bởi ${n.author_name} · ${new Date(n.created_at + ' UTC').toLocaleString('vi-VN')}${n.updated_at ? ' (đã cập nhật)' : ''}`;
+        `Đăng bởi ${n.author_name} · ${formatDateTime(n.created_at + ' UTC')}${n.updated_at ? ' (đã cập nhật)' : ''}`;
     document.getElementById('news-reader-content').innerHTML = n.content;
 
     const imgWrap = document.getElementById('news-reader-img-wrap');
@@ -251,7 +251,7 @@ function renderNewsManagerTable(news) {
         const thumb = n.image
             ? `<img class="nm-thumb" src="${n.image}" alt="">`
             : `<div class="nm-thumb-placeholder">📰</div>`;
-        const dateStr = new Date(n.created_at + ' UTC').toLocaleDateString('vi-VN');
+        const dateStr = formatDate(n.created_at + ' UTC');
         const editedStr = n.updated_at ? `<div class="nm-last-edit">Đã sửa</div>` : '';
         return `<tr>
             <td>${thumb}</td>

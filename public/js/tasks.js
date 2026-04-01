@@ -27,7 +27,7 @@ async function loadWidgetTasks() {
                 const isLate   = dl < now;
                 const isSoon   = !isLate && diffDays <= 3;
                 const dotCls   = isLate ? 'dot-red' : isSoon ? 'dot-yellow' : 'dot-gray';
-                const dateStr  = dl.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
+                const dateStr  = formatDate(t.deadline);
                 const metaText = isLate ? `⚠ Quá hạn · ${dateStr}` : `📅 ${dateStr}`;
                 const metaCls  = isLate ? 'si-meta overdue' : isSoon ? 'si-meta soon' : 'si-meta';
                 return `<div class="sidebar-item" onclick="switchView('tasks')">
@@ -54,7 +54,7 @@ function renderTasksFull(tasks) {
         return `<div class="task-item ${isLate ? 'overdue' : ''}">
             <div class="task-item-main">
                 <div class="task-title">${t.title}</div>
-                <div class="task-deadline">Hạn: ${dl.toLocaleString('vi-VN')}</div>
+                <div class="task-deadline">Hạn: ${formatDateTime(t.deadline)}</div>
             </div>
             <div class="task-item-actions">
                 <span class="task-status" style="background:${isLate ? 'rgba(220,38,38,0.1)' : 'var(--accent-light)'};color:${isLate ? 'var(--danger)' : 'var(--accent)'}">

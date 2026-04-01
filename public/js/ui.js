@@ -34,13 +34,11 @@ function showApp() {
         if (btnManageAnn) btnManageAnn.classList.remove('hidden');
     }
 
-    loadDepartments().then(() => {
-        startClock();
-        initSocket();
-        loadDashboard();
-        loadWidgetTasks();
-        loadWidgetMembers();
-    });
+    startClock();
+    initSocket();
+    loadDashboard();
+    loadWidgetTasks();
+    loadWidgetMembers();
 }
 
 async function loadDepartments() {
@@ -428,15 +426,122 @@ function hideToast() {
 
 
 /* ══════════════════════════════════════════════════════
-   CLOCK
+   CLOCK & CALENDAR
 ══════════════════════════════════════════════════════ */
 function startClock() {
     function tick() {
         const now = new Date();
-        document.getElementById('clock').textContent = now.toLocaleTimeString('vi-VN');
+        document.getElementById('clock').textContent = formatTime(now);
         document.getElementById('date-display').textContent = now.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
     }
     tick();
     setInterval(tick, 1000);
 }
+
+let calCurrentDate = new Date();
+
+function renderCalendar(date) {
+    const month = date.getMonth();
+    const year = date.getFullYear();
+    const today = new Date();
+    
+    // Set Header Title
+    document.getElementById('cal-month-year').textContent = `Tháng ${month + 1}, ${year}`;
+    
+    // Calculate days
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    // Adjust first day to start on Monday (0=Sun, 1=Mon ... 6=Sat)
+    let startOffset = firstDay === 0 ? 6 : firstDay - 1;
+    
+    const grid = document.getElementById('cal-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    // Previous Month Days
+    for (let i = startOffset - 1; i >= 0; i--) {
+        const d = document.createElement('div');
+        d.className = 'cal-day other-month';
+        d.textContent = daysInPrevMonth - i;
+        grid.appendChild(d);
+    }
+    
+    // Current Month Days
+    for (let i = 1; i <= daysInMonth; i++) {
+        const d = document.createElement('div');
+        d.className = 'cal-day';
+        if (i === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+            d.classList.add('today');
+        }
+        d.textContent = i;
+        grid.appendChild(d);
+    }
+    
+    // Next Month Days (fill grid to complete rows)
+    const totalCells = startOffset + daysInMonth;
+    const paddingCells = totalCells <= 35 ? 35 - totalCells : 42 - totalCells;
+    for (let i = 1; i <= paddingCells; i++) {
+        const d = document.createElement('div');
+        d.className = 'cal-day other-month empty';
+        d.textContent = i;
+        grid.appendChild(d);
+    }
+}
+
+function initCalendar() {
+    const popup = document.getElementById('calendar-popup');
+    const trigger = document.getElementById('hdr-clock-area');
+    
+    if (!trigger || !popup) return;
+    
+    trigger.addEventListener('click', (e) => {
+        // Prevent click if clicking inside the calendar itself
+        if (popup.contains(e.target)) return;
+        
+        const isHidden = popup.classList.contains('hidden');
+        if (isHidden) {
+            calCurrentDate = new Date(); // Xoay về hôm nay khi mở
+            renderCalendar(calCurrentDate);
+            popup.classList.remove('hidden');
+            // Small timeout to allow element to render before adding transition class
+            setTimeout(() => popup.classList.add('show'), 10);
+        } else {
+            popup.classList.remove('show');
+            setTimeout(() => popup.classList.add('hidden'), 200);
+        }
+    });
+    
+    // Nhấp bên ngoài để đóng
+    document.addEventListener('click', (e) => {
+        if (!trigger.contains(e.target) && !popup.contains(e.target)) {
+            if (popup.classList.contains('show')) {
+                popup.classList.remove('show');
+                setTimeout(() => popup.classList.add('hidden'), 200);
+            }
+        }
+    });
+    
+    // Điều hướng tháng
+    document.getElementById('btn-cal-prev').addEventListener('click', (e) => {
+        e.stopPropagation();
+        calCurrentDate.setMonth(calCurrentDate.getMonth() - 1);
+        renderCalendar(calCurrentDate);
+    });
+    document.getElementById('btn-cal-next').addEventListener('click', (e) => {
+        e.stopPropagation();
+        calCurrentDate.setMonth(calCurrentDate.getMonth() + 1);
+        renderCalendar(calCurrentDate);
+    });
+    document.getElementById('btn-cal-today').addEventListener('click', (e) => {
+        e.stopPropagation();
+        calCurrentDate = new Date();
+        renderCalendar(calCurrentDate);
+    });
+}
+
+// ─── Global Initializations ────────────────────────────────
+loadDepartments();
+initCalendar();
 

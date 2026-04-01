@@ -24,6 +24,30 @@ function getAvatar(u) {
     return av || '/default-avatar.png';
 }
 
+// ── Date/Time Format Helpers ─────────────────────────────
+function formatDateTime(dateInput, includeSeconds = false) {
+    if (!dateInput) return '';
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const opts = { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+    if (includeSeconds) opts.second = '2-digit';
+    return d.toLocaleString('vi-VN', opts);
+}
+
+function formatDate(dateInput) {
+    if (!dateInput) return '';
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric', year: 'numeric' });
+}
+
+function formatTime(dateInput) {
+    if (!dateInput) return '';
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+}
+
 // ─── Apply theme immediately ─────────────────────────────
 applyTheme(currentTheme);
 

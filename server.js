@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const fs = require('fs');
-const sharp = require('sharp');
+
 
 const db = require('./database');
 
@@ -165,22 +165,22 @@ app.post('/api/avatar', authenticateToken, upload.single('avatar'), async (req, 
   try {
     const avatarDir = path.join(__dirname, 'public', 'avatars');
     if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
-    
+
     const outFilename = `avatar-${req.user.id}-${Date.now()}.jpg`;
     const outPath = path.join(avatarDir, outFilename);
-    
+
     // Resize to 100x100 using sharp
     await sharp(req.file.path)
       .resize(100, 100, { fit: 'cover', position: 'center' })
       .jpeg({ quality: 85 })
       .toFile(outPath);
-    
+
     // Delete original upload
     fs.unlinkSync(req.file.path);
-    
+
     const avatarPath = `/avatars/${outFilename}`;
     db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatarPath, req.user.id);
-    
+
     res.json({ success: true, avatar: avatarPath });
   } catch (err) {
     console.error('Avatar resize error:', err);
@@ -276,7 +276,7 @@ app.delete('/api/news/:id', authenticateToken, (req, res) => {
   // Delete image file if local
   if (existing.image && (existing.image.startsWith('/news-images/') || existing.image.startsWith('/uploads/'))) {
     const imgPath = path.join(__dirname, 'public', existing.image);
-    try { if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); } catch (e) {}
+    try { if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath); } catch (e) { }
   }
 
   db.prepare('DELETE FROM news WHERE id=?').run(id);
@@ -357,8 +357,8 @@ app.delete('/api/announcements/:id', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-
 // ─── Tasks API ─────────────────────────────────────────────
+
 app.get('/api/tasks', authenticateToken, (req, res) => {
   const tasks = db.prepare('SELECT * FROM tasks WHERE user_id = ? ORDER BY deadline ASC').all(req.user.id);
   res.json(tasks);
@@ -420,12 +420,12 @@ app.get('/api/dm/:userId', authenticateToken, (req, res) => {
     ORDER BY dm.created_at ASC
     LIMIT 100
   `).all(myId, otherId, otherId, myId);
-  
+
   // Mark as read
   db.prepare(`UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP 
     WHERE sender_id = ? AND receiver_id = ? AND read_at IS NULL`)
     .run(otherId, myId);
-  
+
   res.json(messages);
 });
 
@@ -512,9 +512,34 @@ io.use((socket, next) => {
   });
 });
 
+let isChatEnabled = true;
+
+// ─── Caro State ────────────────────────────────────────────
+let caroWaitingQueue = []; // { socket, id, fullname, avatar }
+let caroRooms = {}; // { roomId: { players: [socketId1, socketId2], board:[], turn: 'X'|'O' } }
+
+// Check win 3x3
+function checkCaroWin(board) {
+    const lines = [
+        [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+        [0, 3, 6], [1, 4, 7], [2, 5, 8], // Cols
+        [0, 4, 8], [2, 4, 6]             // Diags
+    ];
+    for (const [a, b, c] of lines) {
+        if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+            return { winner: board[a], line: [a, b, c] };
+        }
+    }
+    if (!board.includes(null)) return { winner: 'draw', line: [] };
+    return null;
+}
+
 io.on('connection', (socket) => {
   console.log(`🟢 ${socket.user.fullname} đã kết nối`);
   
+  // Gửi trạng thái chat hiện tại
+  socket.emit('chat_status', isChatEnabled);
+
   // Join personal room for DM delivery
   socket.join(`user:${socket.user.id}`);
 
@@ -525,28 +550,28 @@ io.on('connection', (socket) => {
     ORDER BY m.created_at DESC LIMIT 50
   `).all().reverse();
   socket.emit('init_messages', lastMessages);
-  
+
   // Gửi unread count khi vừa kết nối
   const unreadCount = db.prepare(
     'SELECT COUNT(*) as count FROM direct_messages WHERE receiver_id = ? AND read_at IS NULL'
   ).get(socket.user.id);
   socket.emit('unread_total', unreadCount.count);
-  
+
   // ─── Reactions Logic ────────────────────────────────────
   function handleReaction(table, msgId, emoji) {
     try {
       const msg = db.prepare(`SELECT reactions FROM ${table} WHERE id = ?`).get(msgId);
       if (!msg) return null;
-      
+
       let reactions = {};
-      try { reactions = JSON.parse(msg.reactions || '{}'); } catch(e) { reactions = {}; }
-      
+      try { reactions = JSON.parse(msg.reactions || '{}'); } catch (e) { reactions = {}; }
+
       const userId = socket.user.id;
       const userName = socket.user.fullname;
 
       // Structure: { "👍": { "1": "User A", "2": "User B" }, "❤️": { "3": "User C" } }
       if (!reactions[emoji]) reactions[emoji] = {};
-      
+
       if (reactions[emoji][userId]) {
         // Same emoji → toggle off
         delete reactions[emoji][userId];
@@ -565,7 +590,7 @@ io.on('connection', (socket) => {
 
       const reactionsStr = JSON.stringify(reactions);
       db.prepare(`UPDATE ${table} SET reactions = ? WHERE id = ?`).run(reactionsStr, msgId);
-      
+
       return reactions;
     } catch (err) {
       console.error(`Reaction error in ${table}:`, err);
@@ -589,11 +614,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send_message', (content) => {
+    if (!isChatEnabled && socket.user.role !== 'admin') return;
     if (!content || !content.trim()) return;
     const stmt = db.prepare('INSERT INTO messages (user_id, content) VALUES (?, ?)');
-    stmt.run(socket.user.id, content.trim());
+    const info = stmt.run(socket.user.id, content.trim());
 
     io.emit('message', {
+      id: info.lastInsertRowid,
       user_id: socket.user.id,
       fullname: socket.user.fullname,
       content: content.trim(),
@@ -601,16 +628,71 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ─── Admin Chat Controls ────────────────────────────────
+  socket.on('admin_toggle_chat', () => {
+    if (socket.user.role !== 'admin') return;
+    isChatEnabled = !isChatEnabled;
+    io.emit('chat_status', isChatEnabled);
+  });
+
+  socket.on('admin_clear_chat', () => {
+    if (socket.user.role !== 'admin') return;
+    db.prepare('DELETE FROM messages').run();
+    io.emit('chat_cleared');
+  });
+
+  socket.on('delete_message', (msgId) => {
+    const msg = db.prepare('SELECT user_id FROM messages WHERE id = ?').get(msgId);
+    if (!msg) return;
+    
+    // Only author or admin can delete
+    if (msg.user_id === socket.user.id || socket.user.role === 'admin') {
+      db.prepare('DELETE FROM messages WHERE id = ?').run(msgId);
+      io.emit('message_deleted', msgId);
+    }
+  });
+
+  // ─── Polls Logic ─────────────────────────────────────────
+  socket.on('submit_vote', ({ pollId, optionId }) => {
+    if (!pollId || !optionId) return;
+    try {
+      // Check if expired
+      const pollInfo = db.prepare('SELECT expires_at FROM polls WHERE id = ?').get(pollId);
+      if (!pollInfo || pollInfo.expires_at < Date.now()) {
+        socket.emit('poll_error', { message: 'Bình chọn đã kết thúc, không thể bỏ phiếu.' });
+        return;
+      }
+
+      db.prepare('INSERT INTO poll_votes (poll_id, option_id, user_id) VALUES (?, ?, ?)').run(pollId, optionId, socket.user.id);
+    } catch(err) {
+      // Ignore if user already voted or DB error
+      return;
+    }
+
+    const votes = db.prepare('SELECT option_id, COUNT(*) as vote_count FROM poll_votes WHERE poll_id = ? GROUP BY option_id').all(pollId);
+    const totalVotes = votes.reduce((sum, v) => sum + v.vote_count, 0);
+    
+    io.emit('poll_updated', {
+      pollId,
+      totalVotes,
+      votes: votes.map(v => ({
+        option_id: v.option_id,
+        count: v.vote_count,
+        percent: totalVotes > 0 ? Math.round((v.vote_count / totalVotes) * 100) : 0
+      }))
+    });
+  });
+
   // ─── DM Events ──────────────────────────────────────────
   socket.on('dm_send', ({ receiverId, content }) => {
     if (!content || !content.trim() || !receiverId) return;
     const text = content.trim();
-    
+
     const stmt = db.prepare(
       'INSERT INTO direct_messages (sender_id, receiver_id, content) VALUES (?, ?, ?)'
     );
     const info = stmt.run(socket.user.id, receiverId, text);
-    
+
     const newMsg = {
       id: info.lastInsertRowid,
       sender_id: socket.user.id,
@@ -620,18 +702,18 @@ io.on('connection', (socket) => {
       created_at: new Date().toISOString(),
       read_at: null
     };
-    
+
     // Gửi tới người nhận (nếu online)
     io.to(`user:${receiverId}`).emit('dm_message', newMsg);
     // Gửi lại cho chính mình (để confirm)
     socket.emit('dm_message', newMsg);
-    
+
     // Cập nhật unread count cho receiver
     const newUnread = db.prepare(
       'SELECT COUNT(*) as count FROM direct_messages WHERE receiver_id = ? AND read_at IS NULL'
     ).get(receiverId);
     io.to(`user:${receiverId}`).emit('unread_total', newUnread.count);
-    
+
     // Gửi DM notification tới receiver
     io.to(`user:${receiverId}`).emit('dm_notify', {
       from_id: socket.user.id,
@@ -644,14 +726,107 @@ io.on('connection', (socket) => {
     db.prepare(`UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP 
       WHERE sender_id = ? AND receiver_id = ? AND read_at IS NULL`)
       .run(senderId, socket.user.id);
-    
+
     const newUnread = db.prepare(
       'SELECT COUNT(*) as count FROM direct_messages WHERE receiver_id = ? AND read_at IS NULL'
     ).get(socket.user.id);
     socket.emit('unread_total', newUnread.count);
   });
 
+  // ─── Caro Game Events ───────────────────────────────────
+  socket.on('caro_join_queue', (userProfile) => {
+    // Ngăn chặn 1 người join 2 lần
+    if (caroWaitingQueue.find(p => p.socket.id === socket.id)) return;
+    
+    const player = { socket, info: userProfile };
+    caroWaitingQueue.push(player);
+    
+    if (caroWaitingQueue.length >= 2) {
+      const p1 = caroWaitingQueue.shift();
+      const p2 = caroWaitingQueue.shift();
+      const roomId = 'caro_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      
+      p1.socket.join(roomId);
+      p2.socket.join(roomId);
+      p1.socket.caroRoomId = roomId;
+      p2.socket.caroRoomId = roomId;
+      
+      caroRooms[roomId] = {
+        p1: { socket: p1.socket, info: p1.info, symbol: 'X' },
+        p2: { socket: p2.socket, info: p2.info, symbol: 'O' },
+        board: Array(9).fill(null),
+        turn: 'X',
+        status: 'playing',
+        rematchVotes: []
+      };
+      
+      // Let players know match is found
+      p1.socket.emit('caro_match_found', { roomId, opponent: p2.info, symbol: 'X', turn: 'X' });
+      p2.socket.emit('caro_match_found', { roomId, opponent: p1.info, symbol: 'O', turn: 'X' });
+    }
+  });
+
+  socket.on('caro_leave_queue', () => {
+    caroWaitingQueue = caroWaitingQueue.filter(p => p.socket.id !== socket.id);
+  });
+
+  socket.on('caro_make_move', ({ roomId, index, symbol }) => {
+    const room = caroRooms[roomId];
+    if (!room) return;
+    
+    // Validate turn
+    if (room.turn !== symbol || room.board[index] !== null) return;
+    
+    room.board[index] = symbol;
+    room.turn = symbol === 'X' ? 'O' : 'X';
+    
+    const winResult = checkCaroWin(room.board);
+    if (winResult) {
+      io.to(roomId).emit('caro_update', { board: room.board, turn: room.turn, winner: winResult.winner, winLine: winResult.line });
+      room.status = 'finished'; // Giữ lại room để chờ rematch
+    } else {
+      io.to(roomId).emit('caro_update', { board: room.board, turn: room.turn });
+    }
+  });
+
+  socket.on('caro_request_rematch', () => {
+    const roomId = socket.caroRoomId;
+    const room = caroRooms[roomId];
+    if (room && room.status === 'finished') {
+      if (!room.rematchVotes.includes(socket.id)) {
+        room.rematchVotes.push(socket.id);
+      }
+      if (room.rematchVotes.length === 2) {
+        // Cả 2 đồng ý -> Đổi symbol
+        room.p1.symbol = room.p1.symbol === 'X' ? 'O' : 'X';
+        room.p2.symbol = room.p2.symbol === 'X' ? 'O' : 'X';
+        room.board = Array(9).fill(null);
+        room.turn = 'X';
+        room.status = 'playing';
+        room.rematchVotes = [];
+        
+        // Gửi hiệu lệnh bắt đầu
+        room.p1.socket.emit('caro_rematch_started', { symbol: room.p1.symbol, turn: 'X' });
+        room.p2.socket.emit('caro_rematch_started', { symbol: room.p2.symbol, turn: 'X' });
+      }
+    }
+  });
+
+  socket.on('caro_leave_match', () => {
+    const roomId = socket.caroRoomId;
+    if (roomId && caroRooms[roomId]) {
+      socket.to(roomId).emit('caro_enemy_left');
+      delete caroRooms[roomId];
+    }
+  });
+
   socket.on('disconnect', () => {
+    caroWaitingQueue = caroWaitingQueue.filter(p => p.socket.id !== socket.id);
+    const roomId = socket.caroRoomId;
+    if (roomId && caroRooms[roomId]) {
+      socket.to(roomId).emit('caro_enemy_left');
+      delete caroRooms[roomId];
+    }
     console.log(`🔴 ${socket.user.fullname} đã ngắt kết nối`);
   });
 });

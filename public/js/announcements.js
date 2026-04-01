@@ -5,10 +5,7 @@ let allAnnouncements = [];
 let editingAnnouncementId = null;
 let removeAnnouncementImageFlag = false;
 
-function formatDate(dateString) {
-    if (!dateString) return '';
-    return new Date(dateString + ' UTC').toLocaleString('vi-VN');
-}
+// Removed local formatDate, using core.js helpers
 
 // ─── Widget: Load & Render ────────────────────────────
 
@@ -32,9 +29,7 @@ function renderAnnouncementsWidget(list) {
         return;
     }
     listEl.innerHTML = list.map(a => {
-        const d = new Date(a.created_at + ' UTC');
-        const dateStr = d.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })
-                      + ' ' + d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+        const dateStr = formatDateTime(a.created_at + ' UTC');
         return `<div class="sidebar-item ann-item" data-id="${a.id}">
             <div class="si-top">
                 <span class="si-dot dot-blue"></span>
@@ -55,7 +50,7 @@ function openAnnouncementReader(id) {
     if (!item) return;
     document.getElementById('announcement-reader-title').textContent = item.title;
     document.getElementById('announcement-reader-meta').innerHTML =
-        `Đăng bởi <b>${item.author_name}</b> · ${formatDate(item.created_at)}`;
+        `Đăng bởi <b>${item.author_name}</b> · ${formatDateTime(item.created_at + ' UTC')}`;
 
     const contentEl = document.getElementById('announcement-reader-content');
     let html = item.content_md
@@ -108,7 +103,7 @@ function renderAnnouncementsManagerTable(list) {
     tbody.innerHTML = list.map(a => `
         <tr>
             <td style="font-weight:500">${a.title}</td>
-            <td style="font-size:0.85rem">${formatDate(a.created_at)}</td>
+            <td style="font-size:0.85rem">${formatDateTime(a.created_at + ' UTC')}</td>
             <td>
                 <button class="btn btn-ghost btn-xs btn-edit-ann" data-id="${a.id}">Sửa</button>
                 <button class="btn btn-ghost btn-xs btn-delete-ann" data-id="${a.id}" style="color:var(--danger)">Xóa</button>

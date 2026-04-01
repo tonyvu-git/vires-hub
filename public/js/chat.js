@@ -3,10 +3,10 @@
 ══════════════════════════════════════════════════════ */
 async function loadDMConversations() {
     try {
-        const res   = await fetch('/api/dm/conversations', { headers: { 'Authorization': `Bearer ${TOKEN}` } });
+        const res = await fetch('/api/dm/conversations', { headers: { 'Authorization': `Bearer ${TOKEN}` } });
         const convos = await res.json();
         renderDMConversations(convos);
-    } catch (e) {}
+    } catch (e) { }
 }
 
 function renderDMConversations(convos) {
@@ -17,7 +17,7 @@ function renderDMConversations(convos) {
     }
     list.innerHTML = convos.map(c => {
         const avatarSrc = getAvatar(c);
-        const isActive  = c.id === dmActivePeerId;
+        const isActive = c.id === dmActivePeerId;
         return `<div class="dm-convo-item ${isActive ? 'active' : ''}" onclick="openDMWith(${c.id}, '${c.fullname.replace(/'/g, "\\'")}', '${avatarSrc}')">
             <img src="${avatarSrc}" alt="${c.fullname}">
             <div class="dm-convo-info">
@@ -31,11 +31,11 @@ function renderDMConversations(convos) {
 
 async function openDMWith(peerId, peerName) {
     if (currentView !== 'dm') switchView('dm');
-    dmActivePeerId   = peerId;
+    dmActivePeerId = peerId;
     dmActivePeerName = peerName;
 
     // Look up avatar from cached users list, fallback to default
-    const peerUser  = allUsers.find(u => u.id === peerId);
+    const peerUser = allUsers.find(u => u.id === peerId);
     const peerAvatar = getAvatar(peerUser);
 
     document.getElementById('dm-peer-name').textContent = peerName;
@@ -48,24 +48,24 @@ async function openDMWith(peerId, peerName) {
     document.querySelectorAll('.dm-convo-item').forEach(el => el.classList.remove('active'));
 
     try {
-        const res      = await fetch(`/api/dm/${peerId}`, { headers: { 'Authorization': `Bearer ${TOKEN}` } });
+        const res = await fetch(`/api/dm/${peerId}`, { headers: { 'Authorization': `Bearer ${TOKEN}` } });
         const messages = await res.json();
-        const box      = document.getElementById('dm-messages');
-        box.innerHTML  = '';
+        const box = document.getElementById('dm-messages');
+        box.innerHTML = '';
         messages.forEach(msg => appendDMMessage(msg));
         scrollDMChat();
-    } catch (e) {}
+    } catch (e) { }
 
     socket.emit('dm_mark_read', { senderId: peerId });
     loadDMConversations();
 }
 
 function appendDMMessage(msg) {
-    const box    = document.getElementById('dm-messages');
+    const box = document.getElementById('dm-messages');
     const isMine = msg.sender_id === USER.id;
-    const div    = document.createElement('div');
+    const div = document.createElement('div');
     div.className = `message ${isMine ? 'mine' : ''}`;
-    const src    = getAvatar(msg.sender_id === USER.id ? USER : allUsers.find(u => u.id === msg.sender_id));
+    const src = getAvatar(msg.sender_id === USER.id ? USER : allUsers.find(u => u.id === msg.sender_id));
     div.innerHTML = `
         <img src="${src}" alt="${msg.sender_name}">
         <div>
@@ -116,14 +116,32 @@ document.getElementById('dashboard-chat-input').onkeydown = e => { if (e.key ===
 function appendDashboardChatMessage(msg) {
     const box = document.getElementById('dashboard-chat-messages');
     if (!box) return;
-    const isMine = msg.user_id === USER.id;
+    
+    // Convert to numbers for safe comparison
+    const currentUserId = USER ? Number(USER.id) : 0;
+    const msgUserId = Number(msg.user_id);
+    const isMine = msgUserId === currentUserId;
+    const isAdmin = USER && USER.role && String(USER.role).toLowerCase().trim() === 'admin';
+    
     const div = document.createElement('div');
+    div.id = `chat-msg-row-${msg.id}`;
     div.className = `widget-chat-msg${isMine ? ' mine' : ''}`;
-    const avatarSrc = getAvatar(isMine ? USER : allUsers.find(u => u.id === msg.user_id));
+    
+    // Find sender avatar
+    const sender = isMine ? USER : allUsers.find(u => Number(u.id) === msgUserId);
+    const avatarSrc = getAvatar(sender);
+    
+    const deleteBtn = (isMine || isAdmin) 
+        ? `<button class="msg-delete-btn" onclick="deleteGlobalMessage(${msg.id})" title="Thu hồi tin nhắn">✕</button>` 
+        : '';
+
     div.innerHTML = `
-        <img src="${avatarSrc}" alt="${msg.fullname}" onerror="this.src='/default-avatar.png'">
+        <img src="${avatarSrc}" alt="${msg.fullname || 'Nhân viên'}" onerror="this.src='/default-avatar.png'">
         <div>
-            <div class="widget-chat-msg-sender">${isMine ? 'TÔI' : msg.fullname}</div>
+            <div class="widget-chat-msg-sender">
+                ${isMine ? 'TÔI' : (msg.fullname || 'Nhân viên')}
+                ${deleteBtn}
+            </div>
             <div class="widget-chat-msg-text" id="msg-${msg.id}">
                 <div class="msg-text">${typeof marked !== 'undefined' ? DOMPurify.sanitize(marked.parse(msg.content)) : msg.content}</div>
                 <div class="reactions-container" id="group-reacts-${msg.id}">
@@ -138,6 +156,15 @@ function appendDashboardChatMessage(msg) {
             </div>
         </div>`;
     box.appendChild(div);
+}
+
+function deleteGlobalMessage(msgId) {
+    if (confirm('Bạn có chắc chắn muốn thu hồi tin nhắn này?')) {
+        socket.emit('delete_message', msgId);
+    }
+}
+async function loadDashboardChatHistory() {
+    // Already handled by init_messages socket event.
 }
 function scrollDashboardChat() {
     const box = document.getElementById('dashboard-chat-messages');
@@ -165,6 +192,36 @@ function initSocket() {
     });
     socket.on('new_post', () => {
         if (currentView === 'dashboard') loadDashboard();
+    });
+
+    socket.on('chat_status', enabled => {
+        const inp = document.getElementById('dashboard-chat-input');
+        const btn = document.getElementById('btn-send-dashboard-chat');
+        if (inp) {
+            inp.disabled = !enabled && USER.role !== 'admin';
+            inp.placeholder = enabled ? "Nhắn tin nhóm..." : "Hệ thống Chat hiện đang khóa";
+        }
+        if (btn) btn.disabled = !enabled && USER.role !== 'admin';
+        
+        // Update admin toggle button text if exists
+        const toggleBtn = document.getElementById('btn-admin-toggle-chat');
+        if (toggleBtn) {
+            toggleBtn.textContent = enabled ? '🔒 Khóa Chat' : '🔓 Mở Chat';
+            toggleBtn.classList.toggle('chat-disabled', !enabled);
+        }
+    });
+
+    socket.on('chat_cleared', () => {
+        const box = document.getElementById('dashboard-chat-messages');
+        if (box) box.innerHTML = '<div class="chat-system-msg">Lịch sử chat đã được xóa bởi Admin.</div>';
+    });
+
+    socket.on('message_deleted', msgId => {
+        const el = document.getElementById(`chat-msg-row-${msgId}`);
+        if (el) {
+            el.classList.add('msg-deleting');
+            setTimeout(() => el.remove(), 400);
+        }
     });
 
     // DM
@@ -209,7 +266,7 @@ function renderReactions(reactions, msgId, type) {
     if (!reactions) return '';
     let data = {};
     if (typeof reactions === 'string') {
-        try { data = JSON.parse(reactions); } catch(e) { data = {}; }
+        try { data = JSON.parse(reactions); } catch (e) { data = {}; }
     } else {
         data = reactions;
     }
@@ -261,4 +318,51 @@ function reactTo(msgId, emoji, type) {
     const picker = document.getElementById(`${type}-picker-${msgId}`);
     if (picker) picker.classList.remove('active');
 }
+
+// ─── Admin UI Injection ───────────────────────────────────
+function injectAdminChatControls() {
+    const userRole = (USER && USER.role) ? String(USER.role).toLowerCase().trim() : '';
+
+    if (userRole !== 'admin') {
+        // Remove controls if not admin (failsafe)
+        document.querySelectorAll('.admin-chat-controls').forEach(el => el.remove());
+        return;
+    }
+    
+    const header = document.querySelector('.dashboard-chat-widget .widget-header');
+    // If header not found or controls already exist, don't duplicate
+    if (!header || document.getElementById('btn-admin-clear-chat')) return;
+
+    const adminControls = document.createElement('div');
+    adminControls.className = 'admin-chat-controls';
+    adminControls.innerHTML = `
+        <button id="btn-admin-clear-chat" class="btn-admin-small" title="Xóa toàn bộ lịch sử">🗑️</button>
+        <button id="btn-admin-toggle-chat" class="btn-admin-small" title="Khóa/Mở Chat">🔒</button>
+    `;
+    
+    const toggleBtn = document.getElementById('btn-toggle-chat');
+    if (toggleBtn) {
+        header.insertBefore(adminControls, toggleBtn);
+    } else {
+        header.appendChild(adminControls);
+    }
+
+    document.getElementById('btn-admin-clear-chat').onclick = () => {
+        if (confirm('BẠN CÓ CHẮC CHẮN MUỐN XÓA TOÀN BỘ LỊCH SỬ CHAT CHUNG? Thao tác này không thể hoàn tác.')) {
+            socket.emit('admin_clear_chat');
+        }
+    };
+    document.getElementById('btn-admin-toggle-chat').onclick = () => {
+        socket.emit('admin_toggle_chat');
+    };
+}
+
+// Initial check
+setTimeout(injectAdminChatControls, 1000);
+// Also call when dashboard matches
+setInterval(() => {
+    if (currentView === 'dashboard' && !document.getElementById('btn-admin-clear-chat')) {
+        injectAdminChatControls();
+    }
+}, 3000);
 

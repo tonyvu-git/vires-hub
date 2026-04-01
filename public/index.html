@@ -78,9 +78,31 @@
             </div>
         </div>
 
-        <div class="hdr-center">
+        <div class="hdr-center" id="hdr-clock-area" title="Nhấn để xem Lịch">
             <div class="hdr-clock" id="clock">00:00:00</div>
             <div class="hdr-date" id="date-display"></div>
+
+            <!-- Calendar Popup -->
+            <div id="calendar-popup" class="calendar-popup hidden">
+                <div class="cal-header">
+                    <button id="btn-cal-prev" class="cal-nav-btn" title="Tháng trước">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <div id="cal-month-year" class="cal-title"></div>
+                    <button id="btn-cal-next" class="cal-nav-btn" title="Tháng sau">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                    </button>
+                    <button id="btn-cal-today" class="cal-today-btn" title="Về hôm nay">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="2"/></svg>
+                    </button>
+                </div>
+                <div class="cal-weekdays">
+                    <div>T2</div><div>T3</div><div>T4</div><div>T5</div><div>T6</div><div>T7</div><div>CN</div>
+                </div>
+                <div id="cal-grid" class="cal-grid">
+                    <!-- Days loaded via JS -->
+                </div>
+            </div>
         </div>
 
         <div class="hdr-right">
@@ -171,15 +193,63 @@
 
             <!-- Dashboard View -->
             <section id="view-dashboard" class="view active">
-                <div class="view-inner">
-                    <div class="news-header-bar">
-                        <div class="section-label">BẢN TIN MỚI NHẤT</div>
-                        <button class="btn btn-ghost btn-sm admin-only hidden" id="btn-manage-news">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            Quản lý bản tin
-                        </button>
+                <div class="view-inner dashboard-split-layout">
+                    <!-- Khu vực Bản tin -->
+                    <div class="dashboard-news-col">
+                        <div class="news-header-bar">
+                            <div class="section-label">BẢN TIN MỚI NHẤT</div>
+                            <button class="btn btn-ghost btn-sm admin-only hidden" id="btn-manage-news">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                                Quản lý bản tin
+                            </button>
+                        </div>
+                        <div id="news-grid" class="news-grid"></div>
                     </div>
-                    <div id="news-grid" class="news-grid"></div>
+                    
+                    <!-- Khu vực Mini Game (Caro) -->
+                    <div class="dashboard-polls-col">
+                        <div class="polls-col-header">
+                            <div class="section-label polls-col-label">GIẢI TRÍ: CỜ CARO</div>
+                        </div>
+                        <div class="caro-widget">
+                            <!-- Chờ Tìm Trận (Menu) -->
+                            <div id="caro-menu" class="caro-menu">
+                                <div class="caro-icon">🎯</div>
+                                <p>Đấu Trí Tìm Niềm Vui</p>
+                                <button id="btn-caro-find" class="btn btn-primary" style="margin-top:10px;">Tìm Đối Thủ (1vs1)</button>
+                                <div id="caro-waiting-text" class="hidden" style="margin-top:10px; font-size: 0.85rem; color: var(--text-muted); animation: pollPulse 1s infinite;">Đang tìm kiếm đối thủ...</div>
+                            </div>
+
+                            <!-- Đang Trong Trận -->
+                            <div id="caro-match" class="caro-match hidden">
+                                <div class="caro-players">
+                                    <div class="caro-player me">
+                                        <img id="caro-me-avatar" src="" alt="">
+                                        <div class="caro-player-info">
+                                            <div class="caro-player-name">Bạn</div>
+                                            <div class="caro-player-symbol highlight-x">X</div>
+                                        </div>
+                                    </div>
+                                    <div class="caro-vs">VS</div>
+                                    <div class="caro-player enemy">
+                                        <div class="caro-player-info" style="align-items:flex-end; text-align:right;">
+                                            <div class="caro-player-name" id="caro-enemy-name">...</div>
+                                            <div class="caro-player-symbol highlight-o">O</div>
+                                        </div>
+                                        <img id="caro-enemy-avatar" src="" alt="">
+                                    </div>
+                                </div>
+                                <div class="caro-turn-indicator" id="caro-turn-indicator">Lượt của Bạn (X)</div>
+                                <div class="caro-board" id="caro-board">
+                                    <!-- 100 ô 10x10 js tự sinh -->
+                                </div>
+                                <div class="caro-actions" style="display: flex; gap: 8px; justify-content: center;">
+                                    <button id="btn-caro-rematch" class="btn btn-primary btn-sm hidden">Ván mới</button>
+                                    <button id="btn-caro-leave" class="btn btn-ghost btn-sm" style="color:var(--danger)">Rời Trận</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -710,6 +780,8 @@
     </div>
 </div>
 
+
+
 <!-- Toast DM -->
 <div id="dm-toast" class="dm-toast hidden">
     <div class="dm-toast-content">
@@ -728,6 +800,8 @@
 <script src="js/tasks.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/admin.js"></script>
-<script src="announcements.js"></script>
+
+<script src="js/announcements.js"></script>
+<script src="js/caro.js"></script>
 </body>
 </html>
