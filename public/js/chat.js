@@ -1,25 +1,32 @@
 /* ══════════════════════════════════════════════════════
    DIRECT MESSAGES (DM)
 ══════════════════════════════════════════════════════ */
+let cachedConvos = [];
+
 async function loadDMConversations() {
     try {
         const res = await fetch('/api/dm/conversations', { headers: { 'Authorization': `Bearer ${TOKEN}` } });
-        const convos = await res.json();
-        renderDMConversations(convos);
+        cachedConvos = await res.json();
+        renderDMConversations(cachedConvos);
     } catch (e) { }
 }
 
-function renderDMConversations(convos) {
+function renderDMConversations(convos, filterText) {
     const list = document.getElementById('dm-convo-list');
-    if (!convos.length) {
+    let filtered = convos;
+    if (filterText) {
+        const q = filterText.toLowerCase();
+        filtered = convos.filter(c => c.fullname.toLowerCase().includes(q));
+    }
+    if (!filtered.length) {
         list.innerHTML = '<div class="empty-hint">Chưa có tin nhắn.<br>Nhắn tin từ Danh bạ!</div>';
         return;
     }
-    list.innerHTML = convos.map(c => {
+    list.innerHTML = filtered.map(c => {
         const avatarSrc = getAvatar(c);
         const isActive = c.id === dmActivePeerId;
         return `<div class="dm-convo-item ${isActive ? 'active' : ''}" onclick="openDMWith(${c.id}, '${c.fullname.replace(/'/g, "\\'")}', '${avatarSrc}')">
-            <img src="${avatarSrc}" alt="${c.fullname}">
+            <img src="${avatarSrc}" alt="${c.fullname}" onerror="this.src='/default-avatar.svg'">
             <div class="dm-convo-info">
                 <div class="dm-convo-name">${c.fullname}</div>
                 <div class="dm-convo-preview">${c.last_message || 'Bắt đầu nhắn tin...'}</div>
@@ -28,6 +35,11 @@ function renderDMConversations(convos) {
         </div>`;
     }).join('');
 }
+
+// DM Search
+document.getElementById('dm-search').addEventListener('input', (e) => {
+    renderDMConversations(cachedConvos, e.target.value);
+});
 
 async function openDMWith(peerId, peerName) {
     if (currentView !== 'dm') switchView('dm');
@@ -41,7 +53,7 @@ async function openDMWith(peerId, peerName) {
     document.getElementById('dm-peer-name').textContent = peerName;
     const peerAvatarEl = document.getElementById('dm-peer-avatar');
     peerAvatarEl.src = peerAvatar;
-    peerAvatarEl.onerror = () => { peerAvatarEl.src = '/default-avatar.png'; };
+    peerAvatarEl.onerror = () => { peerAvatarEl.src = '/default-avatar.svg'; };
     document.getElementById('dm-placeholder').classList.add('hidden');
     document.getElementById('dm-chat').classList.remove('dm-chat-hidden');
 
@@ -65,13 +77,26 @@ function appendDMMessage(msg) {
     const isMine = msg.sender_id === USER.id;
     const div = document.createElement('div');
     div.className = `message ${isMine ? 'mine' : ''}`;
+    div.id = `dm-msg-row-${msg.id}`;
     const src = getAvatar(msg.sender_id === USER.id ? USER : allUsers.find(u => u.id === msg.sender_id));
+
+    const deleteBtn = isMine
+        ? `<button class="msg-delete-btn" onclick="deleteDMMessage(${msg.id})" title="Thu hồi tin nhắn">✕</button>`
+        : '';
+
+    let contentHtml;
+    if (msg.file_path) {
+        contentHtml = `<a href="${msg.file_path}" target="_blank" download="${msg.file_name || ''}" class="dm-file-link">📎 ${msg.file_name || 'File'}</a>`;
+    } else {
+        contentHtml = typeof marked !== 'undefined' ? DOMPurify.sanitize(marked.parse(msg.content)) : msg.content;
+    }
+
     div.innerHTML = `
-        <img src="${src}" alt="${msg.sender_name}">
+        <img src="${src}" alt="${msg.sender_name}" onerror="this.src='/default-avatar.svg'">
         <div>
-            <div class="msg-sender">${msg.sender_name}</div>
+            <div class="msg-sender">${msg.sender_name}${deleteBtn}</div>
             <div class="msg-bubble" id="dm-msg-${msg.id}">
-                <div class="msg-text">${typeof marked !== 'undefined' ? DOMPurify.sanitize(marked.parse(msg.content)) : msg.content}</div>
+                <div class="msg-text">${contentHtml}</div>
                 <div class="reactions-container" id="dm-reacts-${msg.id}">
                     ${renderReactions(msg.reactions, msg.id, 'dm')}
                 </div>
@@ -86,6 +111,12 @@ function appendDMMessage(msg) {
     box.appendChild(div);
 }
 
+function deleteDMMessage(msgId) {
+    if (confirm('Thu hồi tin nhắn này?')) {
+        socket.emit('dm_delete_message', { msgId, peerId: dmActivePeerId });
+    }
+}
+
 function scrollDMChat() {
     const box = document.getElementById('dm-messages');
     box.scrollTop = box.scrollHeight;
@@ -98,6 +129,44 @@ document.getElementById('btn-send-dm').onclick = () => {
     inp.value = '';
 };
 document.getElementById('dm-input').onkeydown = e => { if (e.key === 'Enter') document.getElementById('btn-send-dm').click(); };
+
+// DM File Upload
+document.getElementById('dm-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file || !dmActivePeerId) return;
+
+    const BLOCKED = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.msi', '.scr', '.dll', '.hta', '.com', '.pif', '.reg', '.inf', '.ws', '.wsf', '.cpl'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (BLOCKED.includes(ext)) {
+        alert('Loại file này không được phép gửi vì lý do bảo mật!\n\nCác loại file bị chặn: ' + BLOCKED.join(', '));
+        e.target.value = '';
+        return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+        alert('File quá lớn! Giới hạn 10MB.');
+        e.target.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('receiverId', dmActivePeerId);
+
+    try {
+        const res = await fetch('/api/dm/upload', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${TOKEN}` },
+            body: formData
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            alert(err.error || 'Lỗi upload file');
+        }
+    } catch (err) {
+        alert('Lỗi kết nối khi upload file');
+    }
+    e.target.value = '';
+});
 
 
 /* ══════════════════════════════════════════════════════
@@ -136,7 +205,7 @@ function appendDashboardChatMessage(msg) {
         : '';
 
     div.innerHTML = `
-        <img src="${avatarSrc}" alt="${msg.fullname || 'Nhân viên'}" onerror="this.src='/default-avatar.png'">
+        <img src="${avatarSrc}" alt="${msg.fullname || 'Nhân viên'}" onerror="this.src='/default-avatar.svg'">
         <div>
             <div class="widget-chat-msg-sender">
                 ${isMine ? 'TÔI' : (msg.fullname || 'Nhân viên')}
@@ -250,6 +319,27 @@ function initSocket() {
         const container = document.getElementById(`dm-reacts-${msgId}`);
         if (container) container.innerHTML = renderReactions(reactions, msgId, 'dm');
     });
+
+    socket.on('dm_message_deleted', (msgId) => {
+        const el = document.getElementById(`dm-msg-row-${msgId}`);
+        if (el) {
+            el.classList.add('msg-deleting');
+            setTimeout(() => el.remove(), 400);
+        }
+    });
+
+    socket.on('online_count', (count) => {
+        const el = document.getElementById('stat-online');
+        if (el) el.textContent = count;
+    });
+
+    // Load visitors count on connect
+    fetch('/api/stats/online').then(r => r.json()).then(data => {
+        const vEl = document.getElementById('stat-visitors');
+        if (vEl) vEl.textContent = data.totalVisitors;
+        const oEl = document.getElementById('stat-online');
+        if (oEl) oEl.textContent = data.online;
+    }).catch(() => {});
 }
 
 

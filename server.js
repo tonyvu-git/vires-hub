@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const fs = require('fs');
+const sharp = require('sharp');
 
 
 const db = require('./database');
@@ -29,6 +30,30 @@ const storage = multer.diskStorage({
   }
 });
 const upload = multer({ storage });
+
+// DM file upload config
+const BLOCKED_EXTENSIONS = ['.exe', '.bat', '.cmd', '.ps1', '.vbs', '.msi', '.scr', '.dll', '.hta', '.com', '.pif', '.reg', '.inf', '.ws', '.wsf', '.cpl'];
+const dmStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dest = path.join(__dirname, 'public', 'uploads', 'dm');
+    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
+    cb(null, dest);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'));
+  }
+});
+const dmUpload = multer({
+  storage: dmStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (BLOCKED_EXTENSIONS.includes(ext)) {
+      return cb(new Error('File type not allowed'), false);
+    }
+    cb(null, true);
+  }
+});
 
 app.use(express.json());
 app.use(express.static('public'));
@@ -406,6 +431,50 @@ app.get('/api/dm/conversations', authenticateToken, (req, res) => {
   res.json(convos);
 });
 
+// ─── DM File Upload API ────────────────────────────────────
+app.post('/api/dm/upload', authenticateToken, dmUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Không có file hoặc loại file không được phép' });
+  const receiverId = parseInt(req.body.receiverId);
+  if (!receiverId) return res.status(400).json({ error: 'Thiếu receiverId' });
+
+  const filePath = '/uploads/dm/' + req.file.filename;
+  const fileName = req.file.originalname;
+  const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(); // 2 days
+
+  const stmt = db.prepare(
+    'INSERT INTO direct_messages (sender_id, receiver_id, content, file_path, file_name, expires_at) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  const info = stmt.run(req.user.id, receiverId, `📎 ${fileName}`, filePath, fileName, expiresAt);
+
+  const newMsg = {
+    id: info.lastInsertRowid,
+    sender_id: req.user.id,
+    receiver_id: receiverId,
+    sender_name: req.user.fullname,
+    content: `📎 ${fileName}`,
+    file_path: filePath,
+    file_name: fileName,
+    created_at: new Date().toISOString(),
+    read_at: null
+  };
+
+  io.to(`user:${receiverId}`).emit('dm_message', newMsg);
+  io.to(`user:${req.user.id}`).emit('dm_message', newMsg);
+
+  const newUnread = db.prepare('SELECT COUNT(*) as count FROM direct_messages WHERE receiver_id = ? AND read_at IS NULL').get(receiverId);
+  io.to(`user:${receiverId}`).emit('unread_total', newUnread.count);
+  io.to(`user:${receiverId}`).emit('dm_notify', { from_id: req.user.id, from_name: req.user.fullname, content: `📎 ${fileName}` });
+
+  res.json({ success: true, message: newMsg });
+});
+
+// ─── Online count API ──────────────────────────────────────
+app.get('/api/stats/online', (req, res) => {
+  const online = io.sockets.sockets.size;
+  const visitors = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?').get('total_visitors');
+  res.json({ online, totalVisitors: parseInt(visitors?.setting_value || '0') });
+});
+
 // Lấy messages với 1 người
 app.get('/api/dm/:userId', authenticateToken, (req, res) => {
   const myId = req.user.id;
@@ -518,6 +587,42 @@ let isChatEnabled = true;
 let caroWaitingQueue = []; // { socket, id, fullname, avatar }
 let caroRooms = {}; // { roomId: { players: [socketId1, socketId2], board:[], turn: 'X'|'O' } }
 
+// ─── Ba Lá State ───────────────────────────────────────────
+let balaWaitingQueue = [];
+let balaRooms = {};
+
+// Ba Lá helper: tạo bộ bài 52 lá
+function createDeck() {
+  const suits = ['spade', 'heart', 'diamond', 'club'];
+  const deck = [];
+  for (const suit of suits) {
+    for (let rank = 1; rank <= 13; rank++) {
+      // value: A=1, 2-9=face, 10/J/Q/K=0 (bài cào)
+      const value = rank >= 10 ? 0 : rank;
+      deck.push({ rank, suit, value });
+    }
+  }
+  return deck;
+}
+
+function shuffleDeck(deck) {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function dealBalaCards() {
+  const deck = shuffleDeck(createDeck());
+  return deck.slice(0, 3);
+}
+
+function calcBalaScore(cards) {
+  const total = cards.reduce((sum, c) => sum + c.value, 0);
+  return total % 10;
+}
+
 // Check win 3x3
 function checkCaroWin(board) {
     const lines = [
@@ -536,6 +641,12 @@ function checkCaroWin(board) {
 
 io.on('connection', (socket) => {
   console.log(`🟢 ${socket.user.fullname} đã kết nối`);
+
+  // Increment visitor count
+  db.prepare('UPDATE system_settings SET setting_value = CAST(CAST(setting_value AS INTEGER) + 1 AS TEXT) WHERE setting_key = ?').run('total_visitors');
+
+  // Broadcast online count
+  io.emit('online_count', io.sockets.sockets.size);
   
   // Gửi trạng thái chat hiện tại
   socket.emit('chat_status', isChatEnabled);
@@ -722,6 +833,23 @@ io.on('connection', (socket) => {
     });
   });
 
+  // ─── DM Delete Message ─────────────────────────────────
+  socket.on('dm_delete_message', ({ msgId, peerId }) => {
+    const msg = db.prepare('SELECT sender_id, file_path FROM direct_messages WHERE id = ?').get(msgId);
+    if (!msg) return;
+    if (msg.sender_id !== socket.user.id) return; // Only sender can delete
+
+    // Delete file if exists
+    if (msg.file_path) {
+      const fullPath = path.join(__dirname, 'public', msg.file_path);
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+    }
+
+    db.prepare('DELETE FROM direct_messages WHERE id = ?').run(msgId);
+    socket.emit('dm_message_deleted', msgId);
+    if (peerId) io.to(`user:${peerId}`).emit('dm_message_deleted', msgId);
+  });
+
   socket.on('dm_mark_read', ({ senderId }) => {
     db.prepare(`UPDATE direct_messages SET read_at = CURRENT_TIMESTAMP 
       WHERE sender_id = ? AND receiver_id = ? AND read_at IS NULL`)
@@ -820,16 +948,143 @@ io.on('connection', (socket) => {
     }
   });
 
+  // ─── Ba Lá (3-Card) Game Events ─────────────────────
+  socket.on('bala_join_queue', (userProfile) => {
+    if (balaWaitingQueue.find(p => p.socket.id === socket.id)) return;
+    const player = { socket, info: userProfile };
+    balaWaitingQueue.push(player);
+
+    if (balaWaitingQueue.length >= 2) {
+      const p1 = balaWaitingQueue.shift();
+      const p2 = balaWaitingQueue.shift();
+      const roomId = 'bala_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+
+      p1.socket.join(roomId);
+      p2.socket.join(roomId);
+      p1.socket.balaRoomId = roomId;
+      p2.socket.balaRoomId = roomId;
+
+      const p1Cards = dealBalaCards();
+      const p2Cards = dealBalaCards();
+
+      balaRooms[roomId] = {
+        p1: { socket: p1.socket, info: p1.info, cards: p1Cards, flipped: 0, ready: false },
+        p2: { socket: p2.socket, info: p2.info, cards: p2Cards, flipped: 0, ready: false },
+        status: 'playing',
+        rematchVotes: []
+      };
+
+      p1.socket.emit('bala_match_found', { roomId, opponent: p2.info, cards: p1Cards });
+      p2.socket.emit('bala_match_found', { roomId, opponent: p1.info, cards: p2Cards });
+    }
+  });
+
+  socket.on('bala_leave_queue', () => {
+    balaWaitingQueue = balaWaitingQueue.filter(p => p.socket.id !== socket.id);
+  });
+
+  socket.on('bala_flip_card', ({ roomId, index }) => {
+    const room = balaRooms[roomId];
+    if (!room) return;
+    const player = room.p1.socket.id === socket.id ? room.p1 : room.p2;
+    player.flipped = Math.min(player.flipped + 1, 3);
+  });
+
+  socket.on('bala_compare', ({ roomId }) => {
+    const room = balaRooms[roomId];
+    if (!room || room.status !== 'playing') return;
+
+    const player = room.p1.socket.id === socket.id ? room.p1 : room.p2;
+    player.ready = true;
+
+    // Cả 2 đều sẵn sàng → so điểm
+    if (room.p1.ready && room.p2.ready) {
+      const s1 = calcBalaScore(room.p1.cards);
+      const s2 = calcBalaScore(room.p2.cards);
+      room.status = 'finished';
+
+      let r1 = 'draw', r2 = 'draw';
+      if (s1 > s2) { r1 = 'win'; r2 = 'lose'; }
+      else if (s2 > s1) { r1 = 'lose'; r2 = 'win'; }
+
+      room.p1.socket.emit('bala_result', {
+        myScore: s1, enemyScore: s2, result: r1,
+        myCards: room.p1.cards, enemyCards: room.p2.cards
+      });
+      room.p2.socket.emit('bala_result', {
+        myScore: s2, enemyScore: s1, result: r2,
+        myCards: room.p2.cards, enemyCards: room.p1.cards
+      });
+    }
+  });
+
+  socket.on('bala_request_rematch', () => {
+    const roomId = socket.balaRoomId;
+    const room = balaRooms[roomId];
+    if (room && room.status === 'finished') {
+      if (!room.rematchVotes.includes(socket.id)) {
+        room.rematchVotes.push(socket.id);
+      }
+      if (room.rematchVotes.length === 2) {
+        room.p1.cards = dealBalaCards();
+        room.p2.cards = dealBalaCards();
+        room.p1.flipped = 0; room.p1.ready = false;
+        room.p2.flipped = 0; room.p2.ready = false;
+        room.status = 'playing';
+        room.rematchVotes = [];
+
+        room.p1.socket.emit('bala_rematch_started', { cards: room.p1.cards });
+        room.p2.socket.emit('bala_rematch_started', { cards: room.p2.cards });
+      }
+    }
+  });
+
+  socket.on('bala_leave_match', () => {
+    const roomId = socket.balaRoomId;
+    if (roomId && balaRooms[roomId]) {
+      socket.to(roomId).emit('bala_enemy_left');
+      delete balaRooms[roomId];
+    }
+  });
+
+  // ─── Disconnect (cleanup cả Caro lẫn Ba Lá) ───────
   socket.on('disconnect', () => {
     caroWaitingQueue = caroWaitingQueue.filter(p => p.socket.id !== socket.id);
-    const roomId = socket.caroRoomId;
-    if (roomId && caroRooms[roomId]) {
-      socket.to(roomId).emit('caro_enemy_left');
-      delete caroRooms[roomId];
+    const caroRoom = socket.caroRoomId;
+    if (caroRoom && caroRooms[caroRoom]) {
+      socket.to(caroRoom).emit('caro_enemy_left');
+      delete caroRooms[caroRoom];
     }
+
+    balaWaitingQueue = balaWaitingQueue.filter(p => p.socket.id !== socket.id);
+    const balaRoom = socket.balaRoomId;
+    if (balaRoom && balaRooms[balaRoom]) {
+      socket.to(balaRoom).emit('bala_enemy_left');
+      delete balaRooms[balaRoom];
+    }
+
     console.log(`🔴 ${socket.user.fullname} đã ngắt kết nối`);
+
+    // Broadcast updated online count
+    io.emit('online_count', io.sockets.sockets.size);
   });
 });
+
+// ─── Cleanup expired DM files (every hour) ─────────────────
+setInterval(() => {
+  try {
+    const expired = db.prepare(
+      "SELECT id, file_path FROM direct_messages WHERE file_path IS NOT NULL AND expires_at IS NOT NULL AND expires_at < datetime('now')"
+    ).all();
+    for (const row of expired) {
+      const fullPath = path.join(__dirname, 'public', row.file_path);
+      if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+      db.prepare('UPDATE direct_messages SET file_path = NULL, file_name = NULL, content = ? WHERE id = ?')
+        .run('📎 File đã hết hạn (tự xóa sau 2 ngày)', row.id);
+    }
+    if (expired.length > 0) console.log(`🗑️ Đã dọn ${expired.length} file DM hết hạn`);
+  } catch (e) { /* ignore */ }
+}, 60 * 60 * 1000); // 1 hour
 
 server.listen(PORT, () => {
   console.log(`\n🚀 VIRES Hub đang chạy tại: http://localhost:${PORT}`);

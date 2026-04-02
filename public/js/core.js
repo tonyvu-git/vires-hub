@@ -19,9 +19,9 @@ let pendingDeleteId  = null;
 
 // ── Default avatar helper ──────────────────────────────
 function getAvatar(u) {
-    if (!u) return '/default-avatar.png';
+    if (!u) return '/default-avatar.svg';
     const av = typeof u === 'string' ? u : u.avatar;
-    return av || '/default-avatar.png';
+    return av || '/default-avatar.svg';
 }
 
 // ── Date/Time Format Helpers ─────────────────────────────

@@ -201,4 +201,16 @@ if (deptCount === 0) {
   console.log('✅ Đã nạp danh mục 8 phòng ban VIRES');
 }
 
+// ─── Migrate DM: add file columns ──────────────────────────
+const dmFileCols = ['file_path TEXT', 'file_name TEXT', 'expires_at DATETIME'];
+for (const col of dmFileCols) {
+  try { db.exec(`ALTER TABLE direct_messages ADD COLUMN ${col}`); } catch (e) { /* already exists */ }
+}
+
+// ─── Seed visitor count setting ────────────────────────────
+const visitorCheck = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?').get('total_visitors');
+if (!visitorCheck) {
+  db.prepare('INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?)').run('total_visitors', '0');
+}
+
 module.exports = db;

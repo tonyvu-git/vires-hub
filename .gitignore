@@ -30,3 +30,8 @@ logs/
 
 # ─── Misc ─────────────────────────────────────────────
 split.js
+
+# --- Temp & Generated Avatars ---
+tools/staff_data.txt
+public/avatars/avatar-*.jpg
+

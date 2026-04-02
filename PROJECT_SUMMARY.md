@@ -1,114 +1,121 @@
-# VIRES Hub & Wiki — Project Summary
+# 📘 VIRES Hub - Project Technical Summary
 
-> Tài liệu hướng dẫn dành cho AI assistant và Developer để duy trì và phát triển hệ thống.
-> Cập nhật lần cuối: **30/03/2026**
+**Lưu ý:** Tài liệu này được tự động trích xuất từ source code, phục vụ cho AI system (RAG) và Developer Onboarding.
 
 ---
 
 ## 1. Overview
-
-**VIRES Hub** là một hệ thống tích hợp (Hybrid Portal) dành cho nhân viên công ty VIRES, vận hành hoàn toàn trong mạng LAN nội bộ. Hệ thống bao gồm hai thành phần cốt lõi:
-
-1.  **VIRES Hub (Portal):** Trung tâm giao tiếp real-time, quản lý công việc và tin tức ngày.
-2.  **VIRES Wiki (Knowledge Base):** Hệ thống lưu trữ quy trình, chính sách và biểu mẫu chuyên sâu của 7 phòng ban.
-
-### Mục tiêu chiến lược
-- Số hóa quy trình làm việc và tài liệu nội bộ.
-- Tập trung hóa giao tiếp, loại bỏ sự phụ thuộc vào các công cụ chat bên ngoài cho dữ liệu nhạy cảm.
-- Đảm bảo tính bảo mật và tốc độ truy cập cao trên hạ tầng Dell Server nội bộ.
+- **Mục tiêu hệ thống:** Xây dựng một nền tảng văn phòng nội bộ (Internal Hub) đa chức năng, bảo mật và chạy theo thời gian thực dành cho nhân sự của VIRES.
+- **Loại ứng dụng:** Single-Page Application (SPA) lai / Monolithic Web App tích hợp Real-time Websockets.
+- **Các use-case chính:**
+  - Nhắn tin theo thời gian thực (Chat chung toàn công ty & Tin nhắn riêng DM).
+  - Cập nhật thông báo, tin tức nội bộ, tạo Polls (bình chọn).
+  - Quản lý công việc cá nhân qua bảng Kanban (Kéo-Thả).
+  - Lưu trữ Danh bạ nhân viên chi tiết theo phòng ban.
+  - Giải trí nội bộ: Cờ Caro, Bài Ba Lá (có hệ thống Matchmaking).
 
 ---
 
 ## 2. Tech Stack
 
-### Backend & Core
-- **Node.js (Express 5.x):** Framework máy chủ mạnh mẽ và linh hoạt.
-- **Socket.io:** Xử lý giao tiếp hai chiều real-time (Chat, Reactions, Unread Badges).
-- **SQLite (better-sqlite3):** Cơ sở dữ liệu quan hệ đồng bộ, nhẹ và không cần cấu hình phức tạp.
-- **JWT (JsonWebToken):** Cơ chế xác thực không trạng thái (stateless) cho toàn hệ thống.
-- **Sharp:** Xử lý và tối ưu hóa hình ảnh (Avatar, tin tức).
+Dữ liệu được trích xuất trực tiếp từ `package.json` và cấu trúc dự án.
 
-### Frontend
-- **Vanilla JS/CSS/HTML:** Tối ưu hóa hiệu suất, không dùng framework nặng nề.
-- **Docsify (Wiki):** Engine hiển thị tài liệu Markdown trực tiếp không cần build.
-- **Marked.js & DOMPurify:** Xử lý nội dung Markdown an toàn, chống XSS.
+| Phân loại | Công nghệ / Thư viện | Vai trò |
+| :--- | :--- | :--- |
+| **Backend Core** | Node.js, Express (v5.2.1) | Xử lý HTTP Server, API Router. |
+| **Real-time** | Socket.io (v4.8.3) | Đồng bộ trạng thái, Chat, Game, Notifications. |
+| **Database** | SQLite, better-sqlite3 (v12.8.0) | Cơ sở dữ liệu chính, thiết kế light-weight, tích hợp sẵn. |
+| **Security/Auth**| jsonwebtoken (v9.0.3), bcryptjs | Mã hóa mật khẩu, tạo phiên đăng nhập (JWT Token). |
+| **File & Media** | multer (v2.1.1), sharp (v0.34.5) | Upload file (DM), xử lý/resize avatar ảnh. |
+| **Data Parse** | xlsx (v0.18.5) | Công cụ chạy script seed data nhân sự từ Excel. |
+| **UI/Frontend** | Vanilla JS, HTML5, CSS3 Variables | Xây dựng giao diện không phụ thuộc framework (React/Vue). |
+| **FE Utils** | DOMPurify, Marked.js | (Via CDN) Render Markdown an toàn, chống XSS. |
 
 ---
 
 ## 3. Architecture
 
-Hệ thống sử dụng kiến trúc **Monolith Tích hợp**, trong đó một máy chủ Express duy nhất phục vụ cả Portal và Wiki.
+Hệ thống sử dụng kiến trúc **Monolithic Client-Server**, phân tách rõ ràng Frontend (tĩnh) và Backend (API + Websocket).
 
-### Cấu trúc thư mục chính
-```
-mind-hub/
-├── server.js           # Server chính (Auth, API, Socket.io)
-├── database.js         # Schema & Migrations (SQLite)
-├── public/             # Thư mục tĩnh (Frontend)
-│   ├── js/             # JS Modules (core.js, ui.js, chat.js, tasks.js...)
-│   ├── style.css       # Design System & Main Styles
-│   └── wiki/           # 🚀 VIRES Wiki (Docsify App)
-│       ├── auth-check.js  # Cầu nối bảo mật (Shared Auth Bridge)
-│       └── docs/          # Quy trình chi tiết của 7 phòng ban
+```mermaid
+graph TD
+    Client[Client Browser (Vanilla JS/HTML/CSS)]
+    Backend[Node.js / Express Server]
+    DB[(SQLite: database.db)]
+    Storage[Local Disk: /public/uploads]
+
+    Client -- REST API (JSON) --> Backend
+    Client -- Socket.io (Events) --> Backend
+    Backend -- Read/Write --> DB
+    Backend -- Local I/O --> Storage
 ```
 
-### Cơ chế Cầu nối Bảo mật (Auth Bridge)
-Vì Wiki nằm trong thư mục con `/wiki` của Hub, chúng chia sẻ cùng một **Domain Origin**. 
-1.  Người dùng đăng nhập tại Hub -> Lưu `vires_token` vào LocalStorage.
-2.  Khi truy cập `/wiki`, file `auth-check.js` sẽ kiểm tra token trong LocalStorage.
-3.  Nếu không hợp lệ, người dùng bị đẩy về trang login chính.
+### 📂 Vai trò các thư mục chính:
+- **`server.js`**: Entry point của Backend. Khởi tạo Express, cài đặt Multer/Socket, định nghĩa các API routes và toàn bộ Socket.io events.
+- **`database.js`**: Định nghĩa Database Schema (Table creation migrations) và khởi tạo kết nối `better-sqlite3`.
+- **`public/`**: Thư mục Root của Frontend, chứa `index.html` (SPA main file) và `style.css` (global design tokens).
+- **`public/js/`**: Source code JS Frontend, được chia module logic thay vì gộp chung:
+  - `core.js`: Utilities cốt lõi (fetch, token).
+  - `auth.js`, `ui.js`: Xử lý đăng nhập, quản lý giao diện Modal & Sidebar view switching.
+  - `chat.js`: Xử lý Group Chat, DM Chat, File Upload frontend.
+  - `tasks.js`: Logic Drag-and-Drop Kanban board.
+  - `news.js`, `announcements.js`: Chức năng bảng tin và hiển thị Wiki.
+  - `caro.js`, `bala.js`: Client-side logic cho các Minigames.
+- **`tools/`**: Chứa các script utility chạy độc lập (VD: `seed_accounts.js` đọc file Excel tạo DB).
 
 ---
 
 ## 4. Feature Map
 
-| Tính năng | Backend Logic | Frontend Logic |
-| :--- | :--- | :--- |
-| **Hệ thống Auth** | `server.js` (JWT & bcrypt) | `js/auth.js` |
-| **Chat & Emoji** | `server.js` (Socket.io) | `js/chat.js` |
-| **Quản lý Task** | `/api/tasks` (CRUD) | `js/tasks.js` |
-| **Tin tức (News)** | `/api/news` (Multer upload) | `js/news.js` |
-| **Danh bạ (Directory)**| `/api/users` | `js/ui.js` |
-| **VIRES Wiki** | Static serving | `/wiki/auth-check.js` |
-| **Quản trị Admin** | `/api/admin/accounts` | `js/admin.js` |
+Liệt kê các tính năng cốt lõi dựa trên mapping từ source code.
 
-### Cấu trúc Wiki (7 Phòng ban)
-Lưu trữ tại `public/wiki/docs/` với các thư mục chuyên biệt:
-- `org-admin`: Tổ chức - Hành chính
-- `finance`: Tài chính kế toán
-- `ship`: Tàu biển
-- `offshore`: Công trình biển
-- `design`: Thẩm định thiết kế
-- `inland`: Phương tiện thủy nội địa
-- `cert`: Chứng nhận hệ thống
+- **Feature: Authentication & Users**
+  - *Description:* Đăng nhập, đổi mật khẩu, đổi avatar, phân quyền Admin/User.
+  - *API:* `POST /api/login`, `PUT /api/auth/password`, `POST /api/avatar`
+  - *Related Files:* `public/js/auth.js`, `server.js` 
+- **Feature: Global & Direct Messaging**
+  - *Description:* Chat hệ thống và chat cá nhân (DM), hiển thị trạng thái read/unread, search user, thu hồi tin nhắn.
+  - *Socket Events:* `send_message`, `dm_send`, `dm_delete_message`, `online_count`
+  - *Related Files:* `public/js/chat.js`
+- **Feature: DM File Upload**
+  - *Description:* Gửi file qua tin nhắn (max 10MB, filter blacklist `.exe`, tự xóa sau 48h).
+  - *API:* `POST /api/dm/upload`
+  - *Cronjob:* `setInterval` chạy mỗi giờ trong `server.js` dọn file hết hạn.
+- **Feature: Kanban Task Management**
+  - *Description:* Tạo, xóa và kéo thả tasks cá nhân giữa 3 cột trạng thái.
+  - *API:* `GET/POST/PUT/DELETE /api/tasks`
+  - *Related Files:* `public/js/tasks.js`
+- **Feature: Real-time Minigames**
+  - *Description:* Game Cờ Caro (có tính năng Rematch) và Game Bài Ba Lá (Room-based matchmaking).
+  - *Socket Events:* `caro_*`, `bala_*`
+  - *Related Files:* `public/js/caro.js`, `public/js/bala.js`, Server State queue.
 
 ---
 
 ## 5. Server & Deployment
 
-### Dell Server (LAN)
-- **Port:** Mặc định `4000`.
-- **Dữ liệu:** File `database.db` cần được backup định kỳ.
-- **Cấu hình:** Sử dụng file `.env` cho `JWT_SECRET` và `PORT`.
+Hệ thống được thiết kế cực kỳ nhỏ gọn để dễ dàng deploy on-premise.
 
-### Docker (Gợi ý triển khai)
-Dùng Docker để đóng gói toàn bộ môi trường Node.js. Lưu ý mount volume cho thư mục `/uploads` và file `database.db` để không mất dữ liệu khi restart container.
-
----
-
-## 6. Naming & Coding Conventions
-
-### Quy tắc đặt tên (Project-wide)
-- **CSS:** Bắt buộc `kebab-case` (`.nav-item`, `.sidebar-item`). Sử dụng biến CSS `--accent-color` thay vì mã màu cứng.
-- **JavaScript:** `camelCase` cho biến và hàm. Prefix `load*` cho fetch, `render*` cho DOM update.
-- **Database:** `snake_case` cho tên cột (`created_at`, `user_id`).
-
-### Nguyên tắc Phát triển (The "Golden Rules")
-1.  **Shared Origin:** Không bao giờ tách Wiki sang port khác để giữ cơ chế SSO đơn giản qua LocalStorage.
-2.  **No Placeholders:** Mọi hình ảnh phải được tạo thực tế (dùng tool hoặc upload), không dùng link placeholder.
-3.  **Content Security:** Luôn chạy `DOMPurify.sanitize()` cho bất kỳ nội dung `innerHTML` nào đến từ người dùng hoặc Markdown.
-4.  **Wiki Content:** File quy trình phải đặt tên không dấu, gạch ngang (slug) để URL Wiki đẹp.
+- **Cách chạy Local:** 
+  ```bash
+  npm install
+  node server.js
+  ```
+- **Port:** Mặc định `4000` (Có thể đổi qua biến môi trường `process.env.PORT`).
+- **Database:** Tự động gen `database.db` tại root folder nếu chưa có.
+- **Lưu ý triển khai mạng LAN / Production:**
+  - Cần mở/Forward Port `4000` trên Firewall.
+  - Nếu truy cập từ thiết bị ngoài hoặc muốn dùng các tính năng web đặc thù (Clipboards, WebRTC), **bắt buộc cấu hình Reverse Proxy (Nginx) có SSL (HTTPS)**.
+  - Backup định kỳ file `database.db` và thư mục `public/uploads/` cùng `public/avatars/`.
 
 ---
 
-*Tài liệu này là "Sách trắng" cho dự án, vui lòng cập nhật mỗi khi có thay đổi kiến trúc lớn.*
+## 6. Naming Convention & Code Style
+
+Bằng chứng từ quy tắc code thực tế trong source:
+
+- **JS Frontend / Backend Variables**: Sử dụng `camelCase` (VD: `unreadCount`, `dmActivePeerId`).
+- **CSS / UI Classes**: Sử dụng `kebab-case`, ưu tiên cấu trúc theo component (VD: `dm-sidebar`, `msg-bubble`, `btn-primary`).
+- **Database / SQL / Backend API data**: Sử dụng `snake_case` (VD: `user_id`, `created_at`, `file_path`). Tương tự cho các thuộc tính JSON trả về từ DB qua API.
+- **Kiến trúc hàm Frontend**: Ưu tiên mô hình Module ngầm (các hàm global được gọi qua `onclick` từ HTML). DOM manipulation trực tiếp bằng Vanilla JS (`document.getElementById`).
+- **Security Logic**: Mọi innerHTML chứa text do user tự nhập đều được bọc qua thư viện `DOMPurify.sanitize()` trước khi render.

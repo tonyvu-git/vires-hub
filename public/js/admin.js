@@ -23,7 +23,7 @@ function renderAccounts(accounts) {
         return `<tr>
           <td>
             <div class="acc-avatar-cell">
-              <img class="acc-avatar" src="${avatar}" alt="${u.fullname}" onerror="this.src='/default-avatar.png'">
+              <img class="acc-avatar" src="${avatar}" alt="${u.fullname}" onerror="this.src='/default-avatar.svg'">
               <div>
                 <div class="acc-name">${u.fullname}</div>
                 <div class="acc-sub">@${u.username}</div>

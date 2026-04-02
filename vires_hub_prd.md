@@ -1,73 +1,100 @@
-# Tài Liệu Đặc Tả Yêu Cầu Sản Phẩm (PRD)
-**Dự án:** VIRES Hub — Cổng Thông Tin Nội Bộ
-**Khách hàng / Tổ chức:** Trung Tâm Đăng Kiểm Phương Tiện Thủy và Công Trình Biển (VIRES)
-**Trạng thái:** Hoàn tất (V1.0)
+# 📄 Tài Liệu Đặc Tả Yêu Cầu Sản Phẩm (PRD)
+**Sản phẩm:** VIRES Hub  
+**Phiên bản:** 1.0.0  
 
 ---
 
-## 1. Mục tiêu dự án (Project Target)
-Xây dựng một Cổng thông tin nội bộ (Intranet Hub) giúp hiện đại hóa không gian làm việc số cho đội ngũ cán bộ, kỹ sư và nhân viên của VIRES. Nền tảng này đóng vai trò là một "trung tâm (hub)" tiếp nhận và trao đổi:
-- **Thông tin một chiều:** Phổ biến tin tức chung, thông báo nội bộ từ Ban Giám đốc và bộ phận Hành chính.
-- **Tương tác hai chiều:** Trò chuyện trực tuyến (Real-time chat) theo cả hình thức nhóm chung và đàm thoại cá nhân (DM).
-- **Quản lý cá nhân:** Tra cứu danh bạ (dựa trên sơ đồ tổ chức), theo dõi công việc cá nhân.
-- **Trải nghiệm UX/UI chuyên nghiệp:** Đạt độ thẩm mỹ cao, giao diện tối/sáng linh hoạt (Dark/Light mode).
+## 1. Tổng quan & Mục tiêu sản phẩm (Vision & Goals)
+**VIRES Hub** là một nền tảng văn phòng nội bộ ảo (Internal Hub) đa chức năng, được xây dựng riêng biệt cho nhân sự của Cục Đăng kiểm (hoặc phòng ban VIRES). 
+Mục tiêu cốt lõi của sản phẩm là:
+- **Tập trung hóa:** Đưa toàn bộ các công cụ liên lạc và tiện ích nhỏ hằng ngày (Thông báo, Theo dõi công việc, Biểu quyết) vào một nơi duy nhất.
+- **Bảo mật & Nội bộ:** Ngăn chặn việc rò rỉ thông tin ra các nền tảng chat công cộng (Zalo, Messenger) bằng cách tự host hoàn toàn bộ dữ liệu nội bộ.
+- **Tăng tính gắn kết:** Cung cấp tính năng giải trí Real-time ngắn hạn (Caro, Bài Ba Lá) cho giờ nghỉ giải lao, kết nối đồng nghiệp đa phòng ban.
 
-## 2. Đối tượng Người dùng (User Personas)
-Dự án phục vụ 2 nhóm người dùng chính được phân quyền rõ rệt:
-1. **Quản trị viên (Admin):**
-   - Ban giám đốc, hoặc nhân sự phòng Tổ chức - Hành chính.
-   - Có toàn quyền quản lý hệ thống: Thêm mới, chỉnh sửa, xóa tin tức, thông báo, tài khoản.
-   - Quản trị tài khoản của toàn bộ nhân viên (Tạo account, cấp quyền, cấu hình nhân sự).
-2. **Nhân viên (User):**
-   - Kỹ sư, nhân sự thuộc 7 phòng chuyên môn tham mưu của VIRES.
-   - Có thể đọc tin tức/thông báo, xem danh bạ chung, chat với đồng nghiệp, tự quản lý todolist và chỉnh sửa ảnh đại diện/thông tin liên hệ của chính mình.
+## 2. Đối tượng sử dụng (Target Audience)
+- **Nhân sự (User):** Cán bộ, nhân viên tại các đơn vị (P. Tổng hợp, P. Kế toán, Ban Giám Đốc...).
+- **Quản trị viên (Admin):** Ban Giám đốc hoặc nhân sự bộ phận IT chuyên trách vận hành, có quyền reset hệ thống và thông báo diện rộng.
 
-## 3. Danh sách Tính năng Chính (Features list)
+## 3. Chức năng hệ thống (Functional Requirements)
 
-### 3.1. Phân hệ Quản trị Mạng nội bộ (Trang chính - Dashboard)
-- **Hiển thị Tin tức (News):** Trình bày trực quan dưới dạng thẻ (cards) lưới (grid). Hỗ trợ ảnh thumbnail, tiêu đề và tóm tắt. Click để mở chế độ đọc toàn màn hình với thanh cuộn (Reader Modal).
-- **Thông báo (Announcements):** Widget Danh sách thông báo ngắn gọn nằm dọc bên trái, hỗ trợ người xem tra cứu nhanh các quyết định, chỉ đạo.
-- **Thống kê (Stats):** Hiển thị các chỉ số sống động (Tổng số nhân sự, Tổng số tin bài...).
+### 3.1. Hệ thống Tài khoản & Định danh
+- Nhân sự không tự đăng ký tài khoản. Tài khoản được cấp sẵn theo danh sách Excel tự động.
+- **Username Pattern:** Tên + Các chữ cái đầu của phần còn lại viết thường, không dấu (VD: _Vũ Tùng Linh -> linhvt_).
+- Phân quyền (Roles): `admin`, `manager`, `user`.
 
-### 3.2. Quản lý Tin tức & Thông báo (Dành cho Admin)
-- **Trình soạn thảo Markdown chuyên nghiệp:** Cho phép viết nội dung dưới dạng Markdown, có hỗ trợ giao diện xem trước song song thời gian thực (Split-view Live Preview).
-- **Đính kèm hình ảnh:** Cho phép Admin tải tệp hình ảnh trực tiếp từ máy (sử dụng Multer trên Node.js), tự động phân giải lên máy chủ cục bộ.
-- **Xóa & Tự dọn dẹp:** Khi xóa bài viết, hệ thống tự động nhận diện và xóa luôn ảnh vật lý khỏi máy chủ để tiết kiệm dung lượng.
+### 3.2. Không gian Liên lạc (Communication)
+#### A. Chat chung Toàn Công ty (Global Chat)
+- Tất cả nhân sự trong hệ thống đều vào chung một không gian chat.
+- Tin nhắn gửi theo thời gian thực nhờ công nghệ Socket.io.
+- **Tính năng mở rộng:**
+  - `Thu hồi tin nhắn`: Người gửi có quyền thu hồi tin nhắn của chính mình.
+  - `Reaction`: Thả cảm xúc (👍, ❤️, 😂...) lên tin nhắn.
+  - `Admin Control`: Quản trị viên có nút [Clear Chat] xóa sạch tin nhắn cũ và [Bật/Tắt Chat] để biến phòng chat thành kênh Thông báo một chiều.
 
-### 3.3. Hệ thống Giao tiếp (Chat & DM)
-- Bản chất thời gian thực (Real-time) sử dụng công nghệ WebSockets (`Socket.io`).
-- **Chat Chung:** Phòng chat thảo luận mở cho toàn cơ quan hiện luôn trên phần bên phải của Dashboard.
-- **Chat Cá nhân (DM - Direct Messages):** Nhắn tin riêng tư 1-1. Tích hợp huy hiệu đếm (Badge) lượng tin nhắn chưa đọc màu đỏ nổi bật. Cảnh báo hiển thị Popup ngay khi có tin nhắn mới (khi người dùng đang không mở hộp thoại). 
+#### B. Tin nhắn riêng tư (Direct Messaging)
+- Giao tiếp 1-1 riêng biệt, bảo mật tuyệt đối.
+- Có ô tìm kiếm (Search) theo tên nhân viên để bắt đầu chat.
+- **Gửi File (File Sharing):**
+  - Cho phép người dùng gửi File đính kèm qua DM. Giới hạn **10MB / file**.
+  - **Security Filter:** Chặn chặt chẽ các file khả nghi `(.exe, .bat, .cmd, .vbs, .dll,...)`.
+  - **Tự động hủy (Auto-delete):** Nhằm tiết kiệm dung lượng phía Server, tất cả File DM sẽ tự động bị xóa khỏi ổ cứng sau **48 giờ**. Lời nhắn thông báo file hết hạn sẽ thay thế file gốc.
+- **Cảnh báo (Badges):** Hiển thị số lượng tin nhắn chưa đọc màu đỏ ngay trên Header menu và trên từng cuộc hội thoại ở Sidebar.
 
-### 3.4. Danh bạ & Cơ cấu Tổ chức (Directory)
-- Quản lý danh bạ tất cả các thành viên theo chuẩn sơ đồ cơ cấu VIRES hiện hành bao gồm:
-  1. Phòng Tổ chức - Hành chính
-  2. Phòng Tài chính kế toán
-  3. Phòng Tàu biển (SSD)
-  4. Phòng Công trình biển (OGD)
-  5. Phòng Thẩm định thiết kế (RPA)
-  6. Phòng Phương tiện thủy nội địa (IWD)
-  7. Phòng Quản lý công tác đăng kiểm (QMD)
-- Hỗ trợ xem thông tin liên lạc chi tiết cho mọi User: Họ Tên, VIRES ID (Mã NV), Số ĐTDĐ, Email công việc, Email cá nhân.
-- Cơ chế tìm kiếm nhanh tài khoản linh hoạt bằng bộ lọc Tên.
+### 3.3. Không gian Làm việc & Tiện ích
+#### A. Quản lý Công việc Cá nhân (Kanban Tasks)
+- Board chia 3 cột: `Chờ xử lý`, `Đang làm`, `Hoàn thành`.
+- Giao diện Kéo-Thả (Drag & Drop) mượt mà để thay đổi trạng thái thẻ công việc.
+- Hỗ trợ nhập nội dung và chọn Deadline (hạn chót).
+- User tự xóa công việc của mình khi không còn cần thiết.
 
-### 3.5. Nhắc việc (Task Management)
-- Tích hợp To-do list cá nhân thuần tuý cho mỗi tài khoản, cho phép nhập ngày đến hạn (Deadline).
-- Tự động thay đổi màu sắc dòng thời gian biểu để cảnh báo nếu công việc đã bị trễ hạn.
+#### B. Bảng tin (News & Announcements)
+- Đăng tải các bài viết chuyên sâu có hỗ trợ bộ gõ Markdown rendering (In đậm, In nghiêng, Link, Sơ đồ...).
+- Hỗ trợ hiển thị ảnh đính kèm minh họa thông báo.
+- Cho phép Admin xóa bỏ các bản tin lỗi thời.
 
-### 3.6. Thông tin cá nhân & Thiết lập
-- Cho phép User tự thay ảnh đại diện thật (Server tự động resize cắt về dạng ảnh thẻ `100x100px` bằng thư viện Sharp để tối ưu load chung).
-- Đổi giao diện Hệ thống: Chế độ Sáng màu (Light theme) và Tối màu (Dark mode theme), tự động lưu giữ cài đặt bằng `localStorage`.
+#### C. Lấy ý kiến biểu quyết (Polls System)
+- Tạo một câu hỏi khảo sát nhanh với tùy ý số lượng Option (ví dụ: Trưa nay đi ăn ở đâu?).
+- Có giới hạn thời gian tự đóng bình chọn.
+- Biểu đồ Bar-chart hiển thị Phần trăm (%) số phiếu của từng lựa chọn thay đổi thời gian thực mỗi khi có người vote.
 
-## 4. Công nghệ triển khai (Tech Stack)
-Hệ thống là một Ứng dụng Web đơn thẻ (SPA) không đòi hỏi Cloud hay DevOps phức tạp, dễ dàng duy trì nội bộ:
-- **Frontend Core:** HTML5, CSS3 tĩnh (không phụ thuộc Tailwind), JavaScript thuần (Vanilla JS).
-- **Thư viện tích hợp FE:** `Marked.js` (phân giải Markdown), `DOMPurify` (bảo vệ chống mã độc hại XSS attack).
-- **Backend:** Runtime Node.js kết hợp Web framework `Express.js`.
-- **Giao tiếp Realtime:** Dùng `Socket.io`.
-- **Xử lý tệp (Upload):** Backend dùng library `multer` và thư viện xử lý resize ảnh tĩnh `sharp`.
-- **Cơ sở dữ liệu:** Hệ quản trị cục bộ siêu nhẹ `SQLite` (Lưu trữ tập trung bằng 1 tệp `database.db` duy nhất, cho phép Backup cực kỳ an toàn chỉ với 1 cú click copy).
-- **Bảo mật (Auth):** Dữ liệu mã thông báo `JWT` để duyệt Session truy cập.
+#### D. Danh bạ điện tử (Directory)
+- Dạng thẻ (Grid view) chứa thông tin của hơn 60+ thành viên theo từng phòng ban và Avatar tùy biến cá nhân.
+
+### 3.4. Không gian Giải trí Thời gian thực (Entertainment)
+Hệ thống có một Sidebar chuyên phục vụ Gaming, giải toả stress giờ nghỉ.
+- **Cờ Caro (1vs1 Tic-Tac-Toe):**
+  - Có hàng chờ (Queue) để bắt cặp với người khác.
+  - Đánh cờ thời gian thực với luật chuẩn, nhận diện thắng thua báo ngay lập tức.
+  - Nút biểu quyết [Ván mới] (Rematch) giữ nguyên phòng chơi nếu 2 bên đồng ý.
+- **Bài Ba Lá (3-Card):**
+  - Chơi luật tính điểm cộng thẻ dồn Mod 10 kiểu truyền thống.
+  - Engine bài ngẫu nhiên 52 lá sinh ra trên server. 
+  - Animation người chơi tự nhấn để "Lật bài" từ từ giúp tạo sự kịch tính. Sau khi đủ 3 lá lật, biểu diễn kết quả phân định So Điểm phân Thắng/Bại.
+
+### 3.5. Hệ thống thống kê (Footer Stats)
+- Thống kê trực tiếp tại cuối trang Dashboard 2 thông số:
+  - **Online:** Chỉ số Realtime cho biết chính xác bao nhiêu tab/thiết bị đang cắm rễ trên hệ thống lúc này.
+  - **Lượt truy cập:** Số đếm tăng theo thời gian thực phản ánh sức tương tác chung của dự án qua thời gian.
 
 ---
-*Tài liệu PRD này sẽ là gốc để phân tích hệ thống sau này nếu muốn mở rộng thêm quy mô.*
+
+## 4. Yêu cầu Phi chức năng (Non-Functional Requirements)
+
+1. **Bảo mật Nội dung (Security & Sanitation):**
+   - Không cho phép gõ trực tiếp thẻ HTML trong nội dung chat để phòng ngừa XSS Injection. Thư viện `DOMPurify` được dùng để lọc và khử mã độc.
+   - Hash mật khẩu băm 1 chiều trong Database (không lưu cleartext password).
+2. **Hiệu suất & Giao thức (Performance):**
+   - Đảm bảo app hoạt động mà **KHÔNG CẦN F5 (Refresh)** trang. Từ việc nhận tin nhắn, chuyển giao diện, bình chọn, hay lật bài... đều thông qua `WebSocket` siêu tốc.
+   - Ảnh Tải lên hoặc Avatar không tồn tại sẽ mượt mà Fallback sang ảnh SVG `< 1KB` để triệt tiêu độ trễ tải trang.
+3. **Responsive Design (Tính thích ứng):**
+   - UI/UX được thiết kế cấu trúc CSS `Flexbox` và `Grid` kết hợp phong cách Glassmorphism.
+   - Tương thích trải nghiệm màn hình máy tính truyền thống và màn hình nhỏ.
+
+---
+
+## 5. Tầm nhìn Tương lai (Roadmap)
+Để biến hệ thống thành một siêu ứng dụng của Cục, các giai đoạn sau có thể nghiên cứu phát triển:
+- [ ] (Phase 2) Tích hợp Hệ thống Quản trị Tài liệu / Trình ký số liên thông thẳng sang cơ sở dữ liệu quốc gia.
+- [ ] (Phase 2) Ứng dụng AI Chatbot nội bộ đóng vai trò là "Thư ký số tìm kiếm bộ luật".
+- [ ] (Phase 3) Call Video nội bộ (sử dụng tín hiệu WebRTC qua SSL/HTTPS P2P).
+- [ ] (Phase 3) Tích hợp thông báo qua Zalo ZNS / SMS tự động nhắc việc cho nhân sự.

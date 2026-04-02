@@ -11,12 +11,12 @@ function showApp() {
     document.getElementById('user-role').textContent = ROLE_LABELS[USER.role] || 'Nhân viên';
     const hdrAv = document.getElementById('user-avatar');
     hdrAv.src = avatarSrc;
-    hdrAv.onerror = () => { hdrAv.src = '/default-avatar.png'; };
+    hdrAv.onerror = () => { hdrAv.src = '/default-avatar.svg'; };
 
     const settingsPreview = document.getElementById('settings-avatar-preview');
     if (settingsPreview) {
         settingsPreview.src = avatarSrc;
-        settingsPreview.onerror = () => { settingsPreview.src = '/default-avatar.png'; };
+        settingsPreview.onerror = () => { settingsPreview.src = '/default-avatar.svg'; };
     }
 
     // Logo click → về trang chủ
@@ -133,7 +133,7 @@ function openSettings(tab = 'profile') {
     const src = getAvatar(USER);
     const settingsAv = document.getElementById('settings-avatar-preview');
     settingsAv.src = src;
-    settingsAv.onerror = () => { settingsAv.src = '/default-avatar.png'; };
+    settingsAv.onerror = () => { settingsAv.src = '/default-avatar.svg'; };
     document.getElementById('avatar-upload-status').textContent = '';
 
     switchSettingsTab(tab);
@@ -332,7 +332,7 @@ function renderDirectory(users) {
 
         return '<div class="directory-card">' +
             '<div class="dir-card-top">' +
-                '<img src="' + avatarSrc + '" alt="' + u.fullname + '" class="dir-card-avatar" onerror="this.src=\'/default-avatar.png\'">' +
+                '<img src="' + avatarSrc + '" alt="' + u.fullname + '" class="dir-card-avatar" onerror="this.src=\'/default-avatar.svg\'">' +
                 '<div class="dir-card-info">' +
                     '<div class="dir-card-name">' + u.fullname + '</div>' +
                     '<span class="role-badge ' + roleInfo.cls + '">' + roleInfo.label + '</span>' +
